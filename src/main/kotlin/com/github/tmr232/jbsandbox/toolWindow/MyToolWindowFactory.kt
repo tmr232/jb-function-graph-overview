@@ -1,7 +1,6 @@
 package com.github.tmr232.jbsandbox.toolWindow
 
 import com.intellij.openapi.components.service
-import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
@@ -11,24 +10,25 @@ import com.intellij.ui.content.ContentFactory
 import com.github.tmr232.jbsandbox.MyBundle
 import com.github.tmr232.jbsandbox.services.MyProjectService
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.event.CaretEvent
 import com.intellij.openapi.editor.event.CaretListener
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.FileEditorManagerEvent
 import com.intellij.openapi.fileEditor.FileEditorManagerListener
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.Key
+import com.intellij.openapi.util.registry.RegistryManager
 import com.intellij.ui.jcef.JBCefApp
 import com.intellij.ui.jcef.JBCefBrowser
 import javax.swing.JButton
 import javax.swing.JComponent
 import com.intellij.ui.jcef.JBCefBrowserBuilder
-import com.intellij.ui.jcef.JBCefClient
 import com.intellij.util.ui.JBUI
 import org.cef.browser.CefBrowser
 import org.cef.browser.CefFrame
-import org.cef.handler.CefRequestHandlerAdapter
-import org.cef.handler.CefResourceRequestHandler
+import org.cef.handler.*
 import org.cef.misc.BoolRef
 import org.cef.network.CefRequest
 import java.awt.GridLayout
@@ -42,10 +42,83 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
 
     companion object {
         private val CARET_LISTENER_KEY = Key<CaretListener>("FileInfoCaretListener")
+
+        private const val NAME = "SvgViewer"
+
+        private const val HOST_NAME = "localhost"
+        private const val PROTOCOL = "http"
+
+        private const val OVERLAY_SCROLLBARS_CSS_PATH = "/overlayscrollbars.css"
+        private const val OVERLAY_SCROLLBARS_JS_PATH = "/overlayscrollbars.browser.es6.js"
+
+        private const val VIEWER_PATH = "/index.html"
+        private const val IMAGE_PATH = "/image"
+        private const val SCROLLBARS_CSS_PATH = "/scrollbars.css"
+        private const val CHESSBOARD_CSS_PATH = "/chessboard.css"
+        private const val GRID_CSS_PATH = "/pixel_grid.css"
+
+        private const val VIEWER_URL = "$PROTOCOL://$HOST_NAME$VIEWER_PATH"
+        private const val IMAGE_URL = "$PROTOCOL://$HOST_NAME$IMAGE_PATH"
+        private const val SCROLLBARS_STYLE_URL = "$PROTOCOL://$HOST_NAME$SCROLLBARS_CSS_PATH"
+        private const val CHESSBOARD_STYLE_URL = "$PROTOCOL://$HOST_NAME$CHESSBOARD_CSS_PATH"
+        private const val GRID_STYLE_URL = "$PROTOCOL://$HOST_NAME$GRID_CSS_PATH"
+
+        private val ourCefClient = JBCefApp.getInstance().createClient()
+
+        init {
+            Disposer.register(ApplicationManager.getApplication(), ourCefClient)
+        }
+
+        @JvmStatic
+        fun isDebugMode() = RegistryManager.getInstance().`is`("ide.browser.jcef.svg-viewer.debug")
     }
 
+    private val myBrowser: JBCefBrowser =
+        JBCefBrowserBuilder().setClient(ourCefClient).setEnableOpenDevToolsMenuItem(isDebugMode()).build()
+    private val myRequestHandler: CefRequestHandler
+    private val myLoadHandler: CefLoadHandler
+
+
     init {
-        thisLogger().warn("Don't forget to remove all non-needed sample code files with their corresponding registration entries in `plugin.xml`.")
+//        myRequestHandler = CefLocalRequestHandler(PROTOCOL, HOST_NAME)
+//        myRequestHandler.addResource(VIEWER_PATH) {
+//            javaClass.getResourceAsStream("/webview/index.html")?.let {
+//                CefStreamResourceHandler(it, "text/html", this)
+//            }
+//        }
+        myRequestHandler = CefResDirRequestHandler(PROTOCOL, HOST_NAME) { path: String ->
+            javaClass.getResourceAsStream("/webview/$path")?.let {
+                val mimeType = when (path.split(".").last()) {
+                    "html" -> "text/html"
+                    "png" -> "image/png"
+                    else -> null
+                }
+                if (mimeType == null) {
+                    null
+                } else {
+                    CefStreamResourceHandler(it, mimeType, this)
+                }
+            }
+        }
+        ourCefClient.addRequestHandler(myRequestHandler, myBrowser.cefBrowser)
+
+        myLoadHandler = object : CefLoadHandlerAdapter() {
+            override fun onLoadEnd(browser: CefBrowser, frame: CefFrame, httpStatusCode: Int) {
+//                if (frame.isMain) {
+//                    reloadStyles()
+//                    execute("sendInfo = function(info_text) {${myViewerStateJSQuery.inject("info_text")};}")
+//                    execute("setImageUrl('$IMAGE_URL');")
+//                    isGridVisible = myEditorState.isGridVisible
+//                    isTransparencyChessboardVisible = myEditorState.isBackgroundVisible
+//                    setBorderVisible(isBorderVisible())
+//                }
+            }
+        }
+        ourCefClient.addLoadHandler(myLoadHandler, myBrowser.cefBrowser)
+
+        myBrowser.loadURL(VIEWER_URL)
+
+        Disposer.register(this, myBrowser)
     }
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
@@ -55,7 +128,8 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
         val contentManager = toolWindow.contentManager
         if (JBCefApp.isSupported()) {
             val webContent = contentManager.factory.createContent(
-                createWebViewerPanel(),
+//                createWebViewerPanel(),
+                myBrowser.component,
                 "Web Viewer",
                 false
             )
@@ -83,6 +157,7 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
             }
         )
     }
+
     private fun createCaretListener(): CaretListener {
         return object : CaretListener {
             override fun caretPositionChanged(event: CaretEvent) {
@@ -94,6 +169,7 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
             override fun caretRemoved(event: CaretEvent) {}
         }
     }
+
     private fun addCaretListenerIfNeeded(editor: Editor) {
         if (editor.getUserData(CARET_LISTENER_KEY) == null) {
             val caretListener = createCaretListener()
@@ -104,14 +180,14 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
 
     private fun createWebViewerPanel(): JComponent {
 
-        val myRequestHandler = CefLocalRequestHandler("file","")
+        val myRequestHandler = CefLocalRequestHandler("file", "")
         myRequestHandler.addResource("/pic.png") {
             javaClass.getResourceAsStream("/webview/pic.png")?.let {
                 CefStreamResourceHandler(it, "image/png", this)
             }
         }
 
-        val myHandler = object: CefRequestHandlerAdapter() {
+        val myHandler = object : CefRequestHandlerAdapter() {
             override fun getResourceRequestHandler(
                 browser: CefBrowser?,
                 frame: CefFrame?,
@@ -135,7 +211,7 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
 //        val browser = JBCefBrowser("http://localhost/index.html")
 ////        val browser = JBCefBrowser("https://tmr232.github.io/function-graph-overview/")
 //        browser.jbCefClient.cefClient.addRequestHandler(myRequestHandler)
-        val client= JBCefApp.getInstance().createClient()
+        val client = JBCefApp.getInstance().createClient()
         client.cefClient.addRequestHandler(myRequestHandler)
 
 //        client.cefClient.addRequestHandler(MyRequestHandler())
@@ -155,6 +231,8 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
 //        ourCefClient.removeRequestHandler(myRequestHandler, myBrowser.cefBrowser)
 //        ourCefClient.removeLoadHandler(myLoadHandler, myBrowser.cefBrowser)
 //        myDocument.removeDocumentListener(this)
+        ourCefClient.removeRequestHandler(myRequestHandler, myBrowser.cefBrowser)
+//    ourCefClient.removeLoadHandler(myLoadHandler, myBrowser.cefBrowser)
     }
 
 
