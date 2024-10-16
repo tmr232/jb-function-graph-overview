@@ -70,7 +70,7 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
         }
 
         @JvmStatic
-        fun isDebugMode() = RegistryManager.getInstance().`is`("ide.browser.jcef.svg-viewer.debug")
+        fun isDebugMode() = true || RegistryManager.getInstance().`is`("ide.browser.jcef.svg-viewer.debug")
     }
 
     private val myBrowser: JBCefBrowser =
@@ -107,19 +107,21 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
 
         myLoadHandler = object : CefLoadHandlerAdapter() {
             override fun onLoadEnd(browser: CefBrowser, frame: CefFrame, httpStatusCode: Int) {
-//                if (frame.isMain) {
+                if (frame.isMain) {
+                    browser.executeJavaScript("setCode('def f():\\n    if x: pass\\n    elif y: pass\\n    else: pass')", "", 0)
 //                    reloadStyles()
 //                    execute("sendInfo = function(info_text) {${myViewerStateJSQuery.inject("info_text")};}")
 //                    execute("setImageUrl('$IMAGE_URL');")
 //                    isGridVisible = myEditorState.isGridVisible
 //                    isTransparencyChessboardVisible = myEditorState.isBackgroundVisible
 //                    setBorderVisible(isBorderVisible())
-//                }
+                }
             }
         }
         ourCefClient.addLoadHandler(myLoadHandler, myBrowser.cefBrowser)
 
         myBrowser.loadURL(VIEWER_URL)
+
 
         Disposer.register(this, myBrowser)
     }
@@ -273,7 +275,7 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
             val selectedText = editor.selectionModel.selectedText
             selectedTextLabel.text = "Selected: ${selectedText?.take(20) ?: "No selection"}"
 
-            browser.openDevtools()
+//            browser.openDevtools()
             myBrowser.openDevtools()
 
         } else {
