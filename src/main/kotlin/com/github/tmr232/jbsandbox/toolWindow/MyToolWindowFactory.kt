@@ -91,6 +91,9 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
                 val mimeType = when (path.split(".").last()) {
                     "html" -> "text/html"
                     "png" -> "image/png"
+                    "wasm"->"application/wasm"
+                    "js"->"text/javascript"
+                    "css"->"text/css"
                     else -> null
                 }
                 if (mimeType == null) {
@@ -271,6 +274,7 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
             selectedTextLabel.text = "Selected: ${selectedText?.take(20) ?: "No selection"}"
 
             browser.openDevtools()
+            myBrowser.openDevtools()
 
         } else {
             filePathLabel.text = "File: No file open"
