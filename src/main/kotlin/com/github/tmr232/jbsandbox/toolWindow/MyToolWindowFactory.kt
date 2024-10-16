@@ -10,6 +10,7 @@ import com.intellij.ui.components.JBPanel
 import com.intellij.ui.content.ContentFactory
 import com.github.tmr232.jbsandbox.MyBundle
 import com.github.tmr232.jbsandbox.services.MyProjectService
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.event.CaretEvent
 import com.intellij.openapi.editor.event.CaretListener
@@ -17,17 +18,27 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.FileEditorManagerEvent
 import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.util.Key
+import com.intellij.ui.jcef.JBCefApp
+import com.intellij.ui.jcef.JBCefBrowser
 import javax.swing.JButton
 import javax.swing.JComponent
-import com.intellij.ui.jcef.JBCefBrowser
+import com.intellij.ui.jcef.JBCefBrowserBuilder
+import com.intellij.ui.jcef.JBCefClient
 import com.intellij.util.ui.JBUI
+import org.cef.browser.CefBrowser
+import org.cef.browser.CefFrame
+import org.cef.handler.CefRequestHandlerAdapter
+import org.cef.handler.CefResourceRequestHandler
+import org.cef.misc.BoolRef
+import org.cef.network.CefRequest
 import java.awt.GridLayout
 
 
-class MyToolWindowFactory : ToolWindowFactory {
+class MyToolWindowFactory : ToolWindowFactory, Disposable {
     private lateinit var filePathLabel: JBLabel
     private lateinit var cursorPositionLabel: JBLabel
     private lateinit var selectedTextLabel: JBLabel
+    private lateinit var browser: JBCefBrowser
 
     companion object {
         private val CARET_LISTENER_KEY = Key<CaretListener>("FileInfoCaretListener")
@@ -42,12 +53,14 @@ class MyToolWindowFactory : ToolWindowFactory {
         val content = ContentFactory.getInstance().createContent(myToolWindow.getContent(), null, false)
         toolWindow.contentManager.addContent(content)
         val contentManager = toolWindow.contentManager
-        val webContent = contentManager.factory.createContent(
-            createWebViewerPanel(),
-            "Web Viewer",
-            false
-        )
-        contentManager.addContent(webContent)
+        if (JBCefApp.isSupported()) {
+            val webContent = contentManager.factory.createContent(
+                createWebViewerPanel(),
+                "Web Viewer",
+                false
+            )
+            contentManager.addContent(webContent)
+        }
         val fileInfoContent = contentManager.factory.createContent(
             createFileInfoPanel(project),
             "File Info",
@@ -90,10 +103,59 @@ class MyToolWindowFactory : ToolWindowFactory {
     }
 
     private fun createWebViewerPanel(): JComponent {
-        val browser = JBCefBrowser("https://tmr232.github.io/function-graph-overview/")
+
+        val myRequestHandler = CefLocalRequestHandler("file","")
+        myRequestHandler.addResource("/pic.png") {
+            javaClass.getResourceAsStream("/webview/pic.png")?.let {
+                CefStreamResourceHandler(it, "image/png", this)
+            }
+        }
+
+        val myHandler = object: CefRequestHandlerAdapter() {
+            override fun getResourceRequestHandler(
+                browser: CefBrowser?,
+                frame: CefFrame?,
+                request: CefRequest?,
+                isNavigation: Boolean,
+                isDownload: Boolean,
+                requestInitiator: String?,
+                disableDefaultHandling: BoolRef?
+            ): CefResourceRequestHandler {
+                return super.getResourceRequestHandler(
+                    browser,
+                    frame,
+                    request,
+                    isNavigation,
+                    isDownload,
+                    requestInitiator,
+                    disableDefaultHandling
+                )
+            }
+        }
+//        val browser = JBCefBrowser("http://localhost/index.html")
+////        val browser = JBCefBrowser("https://tmr232.github.io/function-graph-overview/")
+//        browser.jbCefClient.cefClient.addRequestHandler(myRequestHandler)
+        val client= JBCefApp.getInstance().createClient()
+        client.cefClient.addRequestHandler(myRequestHandler)
+
+//        client.cefClient.addRequestHandler(MyRequestHandler())
+        browser = JBCefBrowserBuilder().setClient(client).setEnableOpenDevToolsMenuItem(true).setUrl("XXXX").build()
+//        browser.jbCefClient.cefClient.addRequestHandler(MyRequestHandler())
+//        thisLogger().warn(javaClass.classLoader.getResource("webview/index.html")?.toString())
+//        thisLogger().warn(javaClass.getResource("/webview/index.html")?.toString())
+//        val url = javaClass.getResource("/webview/index.html")?.toExternalForm()
+//        url?.let{browser.loadURL(url)}
+//        val html = javaClass.getResourceAsStream("/webview/index.html")?.readBytes()
+//        html?.let{browser.loadHTML(html.toString(Charsets.UTF_8))}
+
         return browser.component
     }
 
+    override fun dispose() {
+//        ourCefClient.removeRequestHandler(myRequestHandler, myBrowser.cefBrowser)
+//        ourCefClient.removeLoadHandler(myLoadHandler, myBrowser.cefBrowser)
+//        myDocument.removeDocumentListener(this)
+    }
 
 
     private fun createFileInfoPanel(project: Project): JComponent {
@@ -129,6 +191,8 @@ class MyToolWindowFactory : ToolWindowFactory {
 
             val selectedText = editor.selectionModel.selectedText
             selectedTextLabel.text = "Selected: ${selectedText?.take(20) ?: "No selection"}"
+
+            browser.openDevtools()
 
         } else {
             filePathLabel.text = "File: No file open"
