@@ -1,29 +1,28 @@
 package com.github.tmr232.jbsandbox.toolWindow
 
-import com.intellij.openapi.components.service
-import com.intellij.openapi.project.Project
-import com.intellij.openapi.wm.ToolWindow
-import com.intellij.openapi.wm.ToolWindowFactory
-import com.intellij.ui.components.JBLabel
-import com.intellij.ui.components.JBPanel
-import com.intellij.ui.content.ContentFactory
 import com.github.tmr232.jbsandbox.MyBundle
 import com.github.tmr232.jbsandbox.services.MyProjectService
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.components.service
+import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.event.CaretEvent
 import com.intellij.openapi.editor.event.CaretListener
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.FileEditorManagerEvent
 import com.intellij.openapi.fileEditor.FileEditorManagerListener
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.registry.RegistryManager
+import com.intellij.openapi.wm.ToolWindow
+import com.intellij.openapi.wm.ToolWindowFactory
+import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBPanel
+import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.jcef.JBCefApp
 import com.intellij.ui.jcef.JBCefBrowser
-import javax.swing.JButton
-import javax.swing.JComponent
 import com.intellij.ui.jcef.JBCefBrowserBuilder
 import com.intellij.util.ui.JBUI
 import org.cef.browser.CefBrowser
@@ -32,13 +31,18 @@ import org.cef.handler.*
 import org.cef.misc.BoolRef
 import org.cef.network.CefRequest
 import java.awt.GridLayout
+import java.util.*
+import javax.swing.JButton
+import javax.swing.JComponent
 
 
 class MyToolWindowFactory : ToolWindowFactory, Disposable {
+    private var devToolsOpen: Boolean = false;
     private lateinit var filePathLabel: JBLabel
     private lateinit var cursorPositionLabel: JBLabel
     private lateinit var selectedTextLabel: JBLabel
     private lateinit var browser: JBCefBrowser
+    private lateinit var devtoolsButton:JButton
 
     companion object {
         private val CARET_LISTENER_KEY = Key<CaretListener>("FileInfoCaretListener")
@@ -107,15 +111,15 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
 
         myLoadHandler = object : CefLoadHandlerAdapter() {
             override fun onLoadEnd(browser: CefBrowser, frame: CefFrame, httpStatusCode: Int) {
-                if (frame.isMain) {
-                    browser.executeJavaScript("setCode('def f():\\n    if x: pass\\n    elif y: pass\\n    else: pass')", "", 0)
+//                if (frame.isMain) {
+//                    browser.executeJavaScript("setCode('def f():\\n    if x: pass\\n    elif y: pass\\n    else: pass')", "", 0)
 //                    reloadStyles()
 //                    execute("sendInfo = function(info_text) {${myViewerStateJSQuery.inject("info_text")};}")
 //                    execute("setImageUrl('$IMAGE_URL');")
 //                    isGridVisible = myEditorState.isGridVisible
 //                    isTransparencyChessboardVisible = myEditorState.isBackgroundVisible
 //                    setBorderVisible(isBorderVisible())
-                }
+//                }
             }
         }
         ourCefClient.addLoadHandler(myLoadHandler, myBrowser.cefBrowser)
@@ -249,7 +253,13 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
         filePathLabel = JBLabel("File: ")
         cursorPositionLabel = JBLabel("Cursor: ")
         selectedTextLabel = JBLabel("Selected: ")
+        devtoolsButton= JButton("Open Devtools")
+        devtoolsButton.addActionListener {
+            thisLogger().warn("Opening devtools!")
+            myBrowser.openDevtools()
+        }
 
+        panel.add(devtoolsButton)
         panel.add(filePathLabel)
         panel.add(cursorPositionLabel)
         panel.add(selectedTextLabel)
@@ -258,6 +268,21 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
         updateFileInfo(FileEditorManager.getInstance(project).selectedTextEditor)
 
         return panel
+    }
+
+    private fun setCode(code:String, cursorOffset:Int) {
+        val base64code = Base64.getEncoder().encodeToString(code.toByteArray())
+        val jsToExecute = """
+            (()=>{
+        function base64ToBytes(base64) {
+  const binString = atob(base64);
+  return Uint8Array.from(binString, (m) => m.codePointAt(0));
+}
+
+const code = new TextDecoder().decode(base64ToBytes("$base64code"));
+setCode(code, $cursorOffset);})();
+        """;
+        myBrowser.cefBrowser.executeJavaScript(jsToExecute, "", 0);
     }
 
     private fun updateFileInfo(editor: Editor?) {
@@ -276,7 +301,13 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
             selectedTextLabel.text = "Selected: ${selectedText?.take(20) ?: "No selection"}"
 
 //            browser.openDevtools()
-            myBrowser.openDevtools()
+            if (!devToolsOpen) {
+                devToolsOpen=  true;
+                myBrowser.openDevtools()
+            }
+//            myBrowser.openDevtools()
+            setCode(document.text, caret.offset)
+
 
         } else {
             filePathLabel.text = "File: No file open"
