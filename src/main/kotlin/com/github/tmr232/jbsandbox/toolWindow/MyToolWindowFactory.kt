@@ -24,7 +24,6 @@ import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.jcef.JBCefApp
 import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.ui.jcef.JBCefBrowserBuilder
-import com.intellij.ui.jcef.JBCefJSQuery
 import com.intellij.util.ui.JBUI
 import org.cef.handler.*
 import java.awt.GridLayout
@@ -87,7 +86,6 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
 
     init {
         ourCefClient.addRequestHandler(myRequestHandler, myBrowser.cefBrowser)
-
 
         myBrowser.loadURL(VIEWER_URL)
 
@@ -245,11 +243,14 @@ setCode(code, $cursorOffset, "$language");})();
         return JButton(text).apply { addActionListener { onClick() } }
     }
 
-    private fun createWebViewContent(): JComponent =
-        JBPanel<JBPanel<*>>().apply {
-            add(createButton("Open Devtools") { myBrowser.openDevtools() })
-            add(myBrowser.component)
-        }
+    private fun createWebViewContent(): JComponent {
+        // TODO: Find a way to enable debugging and keep the scaling!
+//        return JBPanel<JBPanel<*>>().apply {
+//            add(createButton("Open Devtools") { myBrowser.openDevtools() })
+//            add(myBrowser.component)
+//        }
+        return myBrowser.component
+    }
 
 
     class MyToolWindow(toolWindow: ToolWindow) {
