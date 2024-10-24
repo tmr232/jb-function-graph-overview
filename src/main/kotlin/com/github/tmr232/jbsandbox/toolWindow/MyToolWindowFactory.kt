@@ -24,6 +24,7 @@ import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.jcef.JBCefApp
 import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.ui.jcef.JBCefBrowserBuilder
+import com.intellij.ui.jcef.JBCefJSQuery
 import com.intellij.util.ui.JBUI
 import org.cef.handler.*
 import java.awt.GridLayout
@@ -33,13 +34,15 @@ import javax.swing.JComponent
 
 
 class MyToolWindowFactory : ToolWindowFactory, Disposable {
-    private var devToolsOpen: Boolean = false;
     private lateinit var filePathLabel: JBLabel
     private lateinit var cursorPositionLabel: JBLabel
     private lateinit var selectedTextLabel: JBLabel
     private lateinit var devtoolsButton: JButton
 
+
+
     companion object {
+        private const val DEFAULT_DARK_COLORS = "{\"version\":1,\"scheme\":[{\"name\":\"node.default\",\"hex\":\"#707070\"},{\"name\":\"node.entry\",\"hex\":\"#48AB30\"},{\"name\":\"node.exit\",\"hex\":\"#AB3030\"},{\"name\":\"node.throw\",\"hex\":\"#590c0c\"},{\"name\":\"node.yield\",\"hex\":\"#0a9aca\"},{\"name\":\"node.border\",\"hex\":\"#000000\"},{\"name\":\"node.highlight\",\"hex\":\"#dddddd\"},{\"name\":\"edge.regular\",\"hex\":\"#2592a1\"},{\"name\":\"edge.consequence\",\"hex\":\"#4ce34c\"},{\"name\":\"edge.alternative\",\"hex\":\"#ff3e3e\"},{\"name\":\"cluster.border\",\"hex\":\"#302e2e\"},{\"name\":\"cluster.with\",\"hex\":\"#7d007d\"},{\"name\":\"cluster.tryComplex\",\"hex\":\"#344c74\"},{\"name\":\"cluster.try\",\"hex\":\"#1b5f1b\"},{\"name\":\"cluster.finally\",\"hex\":\"#999918\"},{\"name\":\"cluster.except\",\"hex\":\"#590c0c\"},{\"name\":\"graph.background\",\"hex\":\"#2B2D30\"}]}"
         private val CARET_LISTENER_KEY = Key<CaretListener>("FileInfoCaretListener")
 
 
@@ -63,32 +66,30 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
 
     private val myBrowser: JBCefBrowser =
         JBCefBrowserBuilder().setClient(ourCefClient).setEnableOpenDevToolsMenuItem(isDebugMode()).build()
-    private val myRequestHandler: CefRequestHandler
+    private val myRequestHandler: CefRequestHandler = CefResDirRequestHandler(PROTOCOL, HOST_NAME) { path: String ->
+        javaClass.getResourceAsStream("/webview/$path")?.let {
+            val mimeType = when (path.split(".").last()) {
+                "html" -> "text/html"
+                "png" -> "image/png"
+                "wasm" -> "application/wasm"
+                "js" -> "text/javascript"
+                "css" -> "text/css"
+                else -> null
+            }
+            if (mimeType == null) {
+                null
+            } else {
+                CefStreamResourceHandler(it, mimeType, this)
+            }
+        }
+    }
 
 
     init {
-        myRequestHandler = CefResDirRequestHandler(PROTOCOL, HOST_NAME) { path: String ->
-            javaClass.getResourceAsStream("/webview/$path")?.let {
-                val mimeType = when (path.split(".").last()) {
-                    "html" -> "text/html"
-                    "png" -> "image/png"
-                    "wasm" -> "application/wasm"
-                    "js" -> "text/javascript"
-                    "css" -> "text/css"
-                    else -> null
-                }
-                if (mimeType == null) {
-                    null
-                } else {
-                    CefStreamResourceHandler(it, mimeType, this)
-                }
-            }
-        }
         ourCefClient.addRequestHandler(myRequestHandler, myBrowser.cefBrowser)
 
 
         myBrowser.loadURL(VIEWER_URL)
-
 
         Disposer.register(this, myBrowser)
     }
@@ -186,7 +187,9 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
         return panel
     }
 
-    private fun setCode(code: String, cursorOffset: Int) {
+    private fun setCode(code: String, cursorOffset: Int, language:String) {
+        //TODO: It is likely that some languages won't match up with the TS code,
+        //      in which case we'll have to map them from the JB name to the TS name.
         val base64code = Base64.getEncoder().encodeToString(code.toByteArray())
         val jsToExecute = """
             (()=>{
@@ -196,8 +199,15 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
 }
 
 const code = new TextDecoder().decode(base64ToBytes("$base64code"));
-setCode(code, $cursorOffset);})();
+setCode(code, $cursorOffset, "$language");})();
         """;
+        myBrowser.cefBrowser.executeJavaScript(jsToExecute, "", 0);
+    }
+
+    private fun setColors(colors:String) {
+        val jsToExecute = """
+            setColors(`$colors`);
+        """
         myBrowser.cefBrowser.executeJavaScript(jsToExecute, "", 0);
     }
 
@@ -216,13 +226,10 @@ setCode(code, $cursorOffset);})();
             val selectedText = editor.selectionModel.selectedText
             selectedTextLabel.text = "Selected: ${selectedText?.take(20) ?: "No selection"}"
 
-//            browser.openDevtools()
-            if (!devToolsOpen) {
-                devToolsOpen = true;
-                myBrowser.openDevtools()
-            }
-//            myBrowser.openDevtools()
-            setCode(document.text, caret.offset)
+            thisLogger().warn("Language displayName = ${editor.virtualFile.fileType.displayName}, name = ${editor.virtualFile.fileType.name}")
+            setColors(DEFAULT_DARK_COLORS)
+
+            setCode(document.text, caret.offset, editor.virtualFile.fileType.displayName)
 
 
         } else {
@@ -234,14 +241,13 @@ setCode(code, $cursorOffset);})();
 
     override fun shouldBeAvailable(project: Project) = true
 
+    private fun createButton(text: String, onClick: () -> Unit): JComponent {
+        return JButton(text).apply { addActionListener { onClick() } }
+    }
 
     private fun createWebViewContent(): JComponent =
         JBPanel<JBPanel<*>>().apply {
-            add(JButton("Open Devtools").apply {
-                addActionListener {
-                    myBrowser.openDevtools()
-                }
-            })
+            add(createButton("Open Devtools") { myBrowser.openDevtools() })
             add(myBrowser.component)
         }
 
