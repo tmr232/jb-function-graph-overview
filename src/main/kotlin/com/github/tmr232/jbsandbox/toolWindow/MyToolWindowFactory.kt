@@ -1,48 +1,38 @@
 package com.github.tmr232.jbsandbox.toolWindow
 
-import com.github.tmr232.jbsandbox.MyBundle
-import com.github.tmr232.jbsandbox.services.MyProjectService
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.event.CaretEvent
 import com.intellij.openapi.editor.event.CaretListener
-import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.FileEditorManagerEvent
 import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.util.IconLoader
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.registry.RegistryManager
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
-import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
-import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.jcef.JBCefApp
 import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.ui.jcef.JBCefBrowserBuilder
-import com.intellij.util.ui.JBUI
-import org.cef.handler.*
-import java.awt.GridLayout
+import org.cef.handler.CefRequestHandler
+import java.io.File
 import java.util.*
 import javax.swing.JButton
 import javax.swing.JComponent
 
 
+private const val PLUGIN_TITLE = "Function Graph Overview"
+
+
 class MyToolWindowFactory : ToolWindowFactory, Disposable {
-    private lateinit var filePathLabel: JBLabel
-    private lateinit var cursorPositionLabel: JBLabel
-    private lateinit var selectedTextLabel: JBLabel
-    private lateinit var devtoolsButton: JButton
-
-
-
     companion object {
-        private const val DEFAULT_DARK_COLORS = "{\"version\":1,\"scheme\":[{\"name\":\"node.default\",\"hex\":\"#707070\"},{\"name\":\"node.entry\",\"hex\":\"#48AB30\"},{\"name\":\"node.exit\",\"hex\":\"#AB3030\"},{\"name\":\"node.throw\",\"hex\":\"#590c0c\"},{\"name\":\"node.yield\",\"hex\":\"#0a9aca\"},{\"name\":\"node.border\",\"hex\":\"#000000\"},{\"name\":\"node.highlight\",\"hex\":\"#dddddd\"},{\"name\":\"edge.regular\",\"hex\":\"#2592a1\"},{\"name\":\"edge.consequence\",\"hex\":\"#4ce34c\"},{\"name\":\"edge.alternative\",\"hex\":\"#ff3e3e\"},{\"name\":\"cluster.border\",\"hex\":\"#302e2e\"},{\"name\":\"cluster.with\",\"hex\":\"#7d007d\"},{\"name\":\"cluster.tryComplex\",\"hex\":\"#344c74\"},{\"name\":\"cluster.try\",\"hex\":\"#1b5f1b\"},{\"name\":\"cluster.finally\",\"hex\":\"#999918\"},{\"name\":\"cluster.except\",\"hex\":\"#590c0c\"},{\"name\":\"graph.background\",\"hex\":\"#2B2D30\"}]}"
-        private val CARET_LISTENER_KEY = Key<CaretListener>("FileInfoCaretListener")
+        private const val DEFAULT_DARK_COLORS =
+            "{\"version\":1,\"scheme\":[{\"name\":\"node.default\",\"hex\":\"#707070\"},{\"name\":\"node.entry\",\"hex\":\"#48AB30\"},{\"name\":\"node.exit\",\"hex\":\"#AB3030\"},{\"name\":\"node.throw\",\"hex\":\"#590c0c\"},{\"name\":\"node.yield\",\"hex\":\"#0a9aca\"},{\"name\":\"node.border\",\"hex\":\"#000000\"},{\"name\":\"node.highlight\",\"hex\":\"#dddddd\"},{\"name\":\"edge.regular\",\"hex\":\"#2592a1\"},{\"name\":\"edge.consequence\",\"hex\":\"#4ce34c\"},{\"name\":\"edge.alternative\",\"hex\":\"#ff3e3e\"},{\"name\":\"cluster.border\",\"hex\":\"#302e2e\"},{\"name\":\"cluster.with\",\"hex\":\"#7d007d\"},{\"name\":\"cluster.tryComplex\",\"hex\":\"#344c74\"},{\"name\":\"cluster.try\",\"hex\":\"#1b5f1b\"},{\"name\":\"cluster.finally\",\"hex\":\"#999918\"},{\"name\":\"cluster.except\",\"hex\":\"#590c0c\"},{\"name\":\"graph.background\",\"hex\":\"#2B2D30\"}]}"
 
 
         private const val HOST_NAME = "localhost"
@@ -53,28 +43,27 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
 
         private const val VIEWER_URL = "$PROTOCOL://$HOST_NAME$VIEWER_PATH"
 
-        private val ourCefClient = JBCefApp.getInstance().createClient()
-
         init {
             Disposer.register(ApplicationManager.getApplication(), ourCefClient)
         }
 
-        @JvmStatic
-        fun isDebugMode() = true || RegistryManager.getInstance().`is`("ide.browser.jcef.svg-viewer.debug")
+        private fun extensionToMime(extension: String) = when (extension) {
+            "html" -> "text/html"
+            "png" -> "image/png"
+            "wasm" -> "application/wasm"
+            "js" -> "text/javascript"
+            "css" -> "text/css"
+            "json" -> "application/json"
+            else -> null
+        }
+
     }
 
     private val myBrowser: JBCefBrowser =
         JBCefBrowserBuilder().setClient(ourCefClient).setEnableOpenDevToolsMenuItem(isDebugMode()).build()
     private val myRequestHandler: CefRequestHandler = CefResDirRequestHandler(PROTOCOL, HOST_NAME) { path: String ->
         javaClass.getResourceAsStream("/webview/$path")?.let {
-            val mimeType = when (path.split(".").last()) {
-                "html" -> "text/html"
-                "png" -> "image/png"
-                "wasm" -> "application/wasm"
-                "js" -> "text/javascript"
-                "css" -> "text/css"
-                else -> null
-            }
+            val mimeType = extensionToMime(File(path).extension)
             if (mimeType == null) {
                 null
             } else {
@@ -94,25 +83,21 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
 
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-        val myToolWindow = MyToolWindow(toolWindow)
-        val content = ContentFactory.getInstance().createContent(myToolWindow.getContent(), null, false)
-        toolWindow.contentManager.addContent(content)
+        toolWindow.title = PLUGIN_TITLE
+        toolWindow.stripeTitle = PLUGIN_TITLE
+        toolWindow.setIcon(IconLoader.getIcon("/webview/favicon.png", javaClass))
+
         val contentManager = toolWindow.contentManager
         if (JBCefApp.isSupported()) {
             val webContent = contentManager.factory.createContent(
 //                myBrowser.component,
                 createWebViewContent(),
-                "Web Viewer",
+                null,
                 false
             )
             contentManager.addContent(webContent)
         }
-        val fileInfoContent = contentManager.factory.createContent(
-            createFileInfoPanel(project),
-            "File Info",
-            false
-        )
-        contentManager.addContent(fileInfoContent)
+
 
         // Add listeners
         project.messageBus.connect().subscribe(
@@ -160,32 +145,8 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
     }
 
 
-    private fun createFileInfoPanel(project: Project): JComponent {
-        val panel = JBPanel<JBPanel<*>>()
-        panel.layout = GridLayout(3, 1)
-        panel.border = JBUI.Borders.empty(10)
 
-        filePathLabel = JBLabel("File: ")
-        cursorPositionLabel = JBLabel("Cursor: ")
-        selectedTextLabel = JBLabel("Selected: ")
-        devtoolsButton = JButton("Open Devtools")
-        devtoolsButton.addActionListener {
-            thisLogger().warn("Opening devtools!")
-            myBrowser.openDevtools()
-        }
-
-        panel.add(devtoolsButton)
-        panel.add(filePathLabel)
-        panel.add(cursorPositionLabel)
-        panel.add(selectedTextLabel)
-
-        // Initial update
-        updateFileInfo(FileEditorManager.getInstance(project).selectedTextEditor)
-
-        return panel
-    }
-
-    private fun setCode(code: String, cursorOffset: Int, language:String) {
+    private fun setCode(code: String, cursorOffset: Int, language: String) {
         //TODO: It is likely that some languages won't match up with the TS code,
         //      in which case we'll have to map them from the JB name to the TS name.
         val base64code = Base64.getEncoder().encodeToString(code.toByteArray())
@@ -202,7 +163,7 @@ setCode(code, $cursorOffset, "$language");})();
         myBrowser.cefBrowser.executeJavaScript(jsToExecute, "", 0);
     }
 
-    private fun setColors(colors:String) {
+    private fun setColors(colors: String) {
         val jsToExecute = """
             setColors(`$colors`);
         """
@@ -211,18 +172,11 @@ setCode(code, $cursorOffset, "$language");})();
 
     private fun updateFileInfo(editor: Editor?) {
         if (editor != null) {
-            val file = editor.virtualFile
             val caret = editor.caretModel.primaryCaret
             val document = editor.document
 
-            filePathLabel.text = "File: ${file?.path ?: "Unknown"}"
 
-            val line = document.getLineNumber(caret.offset) + 1
-            val column = caret.offset - document.getLineStartOffset(line - 1) + 1
-            cursorPositionLabel.text = "Cursor: Line $line, Column $column"
 
-            val selectedText = editor.selectionModel.selectedText
-            selectedTextLabel.text = "Selected: ${selectedText?.take(20) ?: "No selection"}"
 
             thisLogger().warn("Language displayName = ${editor.virtualFile.fileType.displayName}, name = ${editor.virtualFile.fileType.name}")
             setColors(DEFAULT_DARK_COLORS)
@@ -230,10 +184,6 @@ setCode(code, $cursorOffset, "$language");})();
             setCode(document.text, caret.offset, editor.virtualFile.fileType.displayName)
 
 
-        } else {
-            filePathLabel.text = "File: No file open"
-            cursorPositionLabel.text = "Cursor: N/A"
-            selectedTextLabel.text = "Selected: N/A"
         }
     }
 
@@ -244,28 +194,17 @@ setCode(code, $cursorOffset, "$language");})();
     }
 
     private fun createWebViewContent(): JComponent {
-        // TODO: Find a way to enable debugging and keep the scaling!
-//        return JBPanel<JBPanel<*>>().apply {
-//            add(createButton("Open Devtools") { myBrowser.openDevtools() })
-//            add(myBrowser.component)
-//        }
-        return myBrowser.component
-    }
-
-
-    class MyToolWindow(toolWindow: ToolWindow) {
-
-        private val service = toolWindow.project.service<MyProjectService>()
-
-        fun getContent() = JBPanel<JBPanel<*>>().apply {
-            val label = JBLabel(MyBundle.message("randomLabel", "?"))
-
-            add(label)
-            add(JButton(MyBundle.message("shuffle")).apply {
-                addActionListener {
-                    label.text = MyBundle.message("randomLabel", service.getRandomNumber())
-                }
-            })
+//         TODO: Find a way to enable debugging and keep the scaling!
+        return JBPanel<JBPanel<*>>().apply {
+            add(createButton("Open Devtools") { myBrowser.openDevtools() })
+            add(myBrowser.component)
         }
+//        return myBrowser.component
     }
+
+
 }
+
+private val CARET_LISTENER_KEY = Key<CaretListener>("FileInfoCaretListener")
+private val ourCefClient = JBCefApp.getInstance().createClient()
+fun isDebugMode() = true || RegistryManager.getInstance().`is`("ide.browser.jcef.svg-viewer.debug")
