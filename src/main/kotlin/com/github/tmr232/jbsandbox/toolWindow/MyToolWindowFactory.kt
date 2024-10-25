@@ -62,13 +62,8 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
     private val myBrowser: JBCefBrowser =
         JBCefBrowserBuilder().setClient(ourCefClient).setEnableOpenDevToolsMenuItem(isDebugMode()).build()
     private val myRequestHandler: CefRequestHandler = CefResDirRequestHandler(PROTOCOL, HOST_NAME) { path: String ->
-        javaClass.getResourceAsStream("/webview/$path")?.let {
-            val mimeType = extensionToMime(File(path).extension)
-            if (mimeType == null) {
-                null
-            } else {
-                CefStreamResourceHandler(it, mimeType, this)
-            }
+        javaClass.getResourceAsStream("/webview/$path")?.let { stream ->
+            extensionToMime(File(path).extension)?.let { mimeType -> CefStreamResourceHandler(stream, mimeType, this) }
         }
     }
 
@@ -143,7 +138,6 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
         ourCefClient.removeRequestHandler(myRequestHandler, myBrowser.cefBrowser)
 //    ourCefClient.removeLoadHandler(myLoadHandler, myBrowser.cefBrowser)
     }
-
 
 
     private fun setCode(code: String, cursorOffset: Int, language: String) {
