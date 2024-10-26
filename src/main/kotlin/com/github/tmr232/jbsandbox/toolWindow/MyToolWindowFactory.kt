@@ -143,6 +143,10 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
     private fun setCode(code: String, cursorOffset: Int, language: String) {
         //TODO: It is likely that some languages won't match up with the TS code,
         //      in which case we'll have to map them from the JB name to the TS name.
+        val cfgLanguage = when (language) {
+            "C/C++"->"C"
+            else -> language
+        }
         val base64code = Base64.getEncoder().encodeToString(code.toByteArray())
         val jsToExecute = """
             (()=>{
@@ -152,7 +156,7 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
 }
 
 const code = new TextDecoder().decode(base64ToBytes("$base64code"));
-setCode(code, $cursorOffset, "$language");})();
+setCode(code, $cursorOffset, "$cfgLanguage");})();
         """;
         myBrowser.cefBrowser.executeJavaScript(jsToExecute, "", 0);
     }
