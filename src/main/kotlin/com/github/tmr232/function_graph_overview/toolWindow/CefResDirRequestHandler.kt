@@ -7,7 +7,7 @@ import org.cef.callback.CefCallback
 import org.cef.handler.*
 import org.cef.misc.BoolRef
 import org.cef.network.CefRequest
-import java.net.URL
+import java.net.URI
 
 private typealias LookupResourceProvider = (String) -> CefResourceHandler?
 
@@ -26,7 +26,7 @@ class CefResDirRequestHandler(
 
     private val RESOURCE_REQUEST_HANDLER = object : CefResourceRequestHandlerAdapter() {
         override fun getResourceHandler(browser: CefBrowser?, frame: CefFrame?, request: CefRequest): CefResourceHandler {
-            val url = URL(request.url)
+            val url = URI(request.url).toURL()
             thisLogger().warn(String.format("url: %s, protocol: %s, authority: %s", url, url.protocol, url.authority))
             url.protocol
             if (!url.protocol.equals(myProtocol) || !url.authority.equals(myAuthority)) {
