@@ -20,57 +20,54 @@ import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.ui.jcef.JBCefBrowserBuilder
 import org.cef.handler.CefRequestHandler
 import java.io.File
-import java.util.*
+import java.util.Base64
 import javax.swing.JButton
 import javax.swing.JComponent
 
+private fun extensionToMime(extension: String) =
+    when (extension) {
+        "html" -> "text/html"
+        "png" -> "image/png"
+        "wasm" -> "application/wasm"
+        "js" -> "text/javascript"
+        "css" -> "text/css"
+        "json" -> "application/json"
+        else -> null
+    }
 
-private fun extensionToMime(extension: String) = when (extension) {
-    "html" -> "text/html"
-    "png" -> "image/png"
-    "wasm" -> "application/wasm"
-    "js" -> "text/javascript"
-    "css" -> "text/css"
-    "json" -> "application/json"
-    else -> null
-}
+private fun internalLanguageName(language: String) =
+    when (language) {
+        "C/C++" -> "C"
+        else -> language
+    }
 
-private fun internalLanguageName(language:String) = when (language) {
-    "C/C++"->"C"
-    else -> language
-}
-
-class MyToolWindowFactory : ToolWindowFactory, Disposable {
-
+class MyToolWindowFactory :
+    ToolWindowFactory,
+    Disposable {
     companion object {
         private const val PLUGIN_TITLE = "Function Graph Overview"
-
 
         private const val HOST_NAME = "localhost"
         private const val PROTOCOL = "http"
 
-
         private const val VIEWER_PATH = "/index.html"
 
         private const val VIEWER_URL = "$PROTOCOL://$HOST_NAME$VIEWER_PATH"
-
     }
 
-
-    private val CARET_LISTENER_KEY = Key<CaretListener>("FileInfoCaretListener")
+    private val caretListenerKey = Key<CaretListener>("FileInfoCaretListener")
     private val ourCefClient = JBCefApp.getInstance().createClient()
-    private fun isDebugMode() = true || RegistryManager.getInstance().`is`("ide.browser.jcef.svg-viewer.debug")
 
-    private val myCaretListener = createCaretListener()
+    private fun isDebugMode() = true || RegistryManager.getInstance().`is`("ide.browser.jcef.svg-viewer.debug")
 
     private val myBrowser: JBCefBrowser =
         JBCefBrowserBuilder().setClient(ourCefClient).setEnableOpenDevToolsMenuItem(isDebugMode()).build()
-    private val myRequestHandler: CefRequestHandler = CefResDirRequestHandler(PROTOCOL, HOST_NAME) { path: String ->
-        javaClass.getResourceAsStream("/webview/$path")?.let { stream ->
-            extensionToMime(File(path).extension)?.let { mimeType -> CefStreamResourceHandler(stream, mimeType, this) }
+    private val myRequestHandler: CefRequestHandler =
+        CefResDirRequestHandler(PROTOCOL, HOST_NAME) { path: String ->
+            javaClass.getResourceAsStream("/webview/$path")?.let { stream ->
+                extensionToMime(File(path).extension)?.let { mimeType -> CefStreamResourceHandler(stream, mimeType, this) }
+            }
         }
-    }
-
 
     init {
         ourCefClient.addRequestHandler(myRequestHandler, myBrowser.cefBrowser)
@@ -81,24 +78,25 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
         Disposer.register(this, ourCefClient)
     }
 
-
-    override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
+    override fun createToolWindowContent(
+        project: Project,
+        toolWindow: ToolWindow,
+    ) {
         toolWindow.title = PLUGIN_TITLE
         toolWindow.stripeTitle = PLUGIN_TITLE
         toolWindow.setIcon(IconLoader.getIcon("/webview/favicon.png", javaClass))
 
         val contentManager = toolWindow.contentManager
         if (JBCefApp.isSupported()) {
-            val webContent = contentManager.factory.createContent(
+            val webContent =
+                contentManager.factory.createContent(
 //                myBrowser.component,
-                createWebViewContent(),
-                null,
-                false
-            )
+                    createWebViewContent(),
+                    null,
+                    false,
+                )
             contentManager.addContent(webContent)
         }
-
-
 
         // Add listeners
         project.messageBus.connect().subscribe(
@@ -108,42 +106,43 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
                     val editor = event.manager.selectedTextEditor ?: return
                     updateCaretPosition(editor)
 
-
                     // Add caret listener to the editor
-                    addCaretListenerIfNeeded(editor);
+                    addCaretListenerIfNeeded(editor)
                 }
-            }
+            },
         )
     }
 
-    private fun createCaretListener(): CaretListener {
-        return object : CaretListener {
+    private fun createCaretListener(): CaretListener =
+        object : CaretListener {
             override fun caretPositionChanged(event: CaretEvent) {
                 updateCaretPosition(event.editor)
             }
 
             // Implement other methods if needed
             override fun caretAdded(event: CaretEvent) {}
+
             override fun caretRemoved(event: CaretEvent) {}
         }
-    }
 
     private fun addCaretListenerIfNeeded(editor: Editor) {
-        if (editor.getUserData(CARET_LISTENER_KEY) == null) {
+        if (editor.getUserData(caretListenerKey) == null) {
             val caretListener = createCaretListener()
             editor.caretModel.addCaretListener(caretListener)
-            editor.putUserData(CARET_LISTENER_KEY, caretListener)
+            editor.putUserData(caretListenerKey, caretListener)
         }
     }
-
 
     override fun dispose() {
         ourCefClient.removeRequestHandler(myRequestHandler, myBrowser.cefBrowser)
     }
 
-
-    private fun setCode(code: String, cursorOffset: Int, language: String) {
-        //TODO: It is likely that some languages won't match up with the TS code,
+    private fun setCode(
+        code: String,
+        cursorOffset: Int,
+        language: String,
+    ) {
+        // TODO: It is likely that some languages won't match up with the TS code,
         //      in which case we'll have to map them from the JB name to the TS name.
         val cfgLanguage = internalLanguageName(language)
         val base64code = Base64.getEncoder().encodeToString(code.toByteArray())
@@ -156,15 +155,15 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
 
 const code = new TextDecoder().decode(base64ToBytes("$base64code"));
 setCode(code, $cursorOffset, "$cfgLanguage");})();
-        """;
-        myBrowser.cefBrowser.executeJavaScript(jsToExecute, "", 0);
+        """
+        myBrowser.cefBrowser.executeJavaScript(jsToExecute, "", 0)
     }
 
     private fun setColors(colors: String) {
         val jsToExecute = """
             setColors(`$colors`);
         """
-        myBrowser.cefBrowser.executeJavaScript(jsToExecute, "", 0);
+        myBrowser.cefBrowser.executeJavaScript(jsToExecute, "", 0)
     }
 
     private fun updateCaretPosition(editor: Editor?) {
@@ -172,22 +171,20 @@ setCode(code, $cursorOffset, "$cfgLanguage");})();
             val caret = editor.caretModel.primaryCaret
             val document = editor.document
 
-
-
-
-            thisLogger().warn("Language displayName = ${editor.virtualFile.fileType.displayName}, name = ${editor.virtualFile.fileType.name}")
+            thisLogger().warn(
+                "Language displayName = ${editor.virtualFile.fileType.displayName}, name = ${editor.virtualFile.fileType.name}",
+            )
 
             setCode(document.text, caret.offset, editor.virtualFile.fileType.displayName)
-
-
         }
     }
 
     override fun shouldBeAvailable(project: Project) = true
 
-    private fun createButton(text: String, onClick: () -> Unit): JComponent {
-        return JButton(text).apply { addActionListener { onClick() } }
-    }
+    private fun createButton(
+        text: String,
+        onClick: () -> Unit,
+    ): JComponent = JButton(text).apply { addActionListener { onClick() } }
 
     private fun createWebViewContent(): JComponent {
 //         TODO: Find a way to enable debugging and keep the scaling!
@@ -197,6 +194,4 @@ setCode(code, $cursorOffset, "$cfgLanguage");})();
         }
 //        return myBrowser.component
     }
-
-
 }
