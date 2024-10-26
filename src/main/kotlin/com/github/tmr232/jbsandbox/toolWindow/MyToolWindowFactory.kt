@@ -1,7 +1,6 @@
 package com.github.tmr232.jbsandbox.toolWindow
 
 import com.intellij.openapi.Disposable
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.event.CaretEvent
@@ -26,13 +25,25 @@ import javax.swing.JButton
 import javax.swing.JComponent
 
 
-private const val PLUGIN_TITLE = "Function Graph Overview"
+private fun extensionToMime(extension: String) = when (extension) {
+    "html" -> "text/html"
+    "png" -> "image/png"
+    "wasm" -> "application/wasm"
+    "js" -> "text/javascript"
+    "css" -> "text/css"
+    "json" -> "application/json"
+    else -> null
+}
 
+private fun internalLanguageName(language:String) = when (language) {
+    "C/C++"->"C"
+    else -> language
+}
 
 class MyToolWindowFactory : ToolWindowFactory, Disposable {
+
     companion object {
-        private const val DEFAULT_DARK_COLORS =
-            "{\"version\":1,\"scheme\":[{\"name\":\"node.default\",\"hex\":\"#707070\"},{\"name\":\"node.entry\",\"hex\":\"#48AB30\"},{\"name\":\"node.exit\",\"hex\":\"#AB3030\"},{\"name\":\"node.throw\",\"hex\":\"#590c0c\"},{\"name\":\"node.yield\",\"hex\":\"#0a9aca\"},{\"name\":\"node.border\",\"hex\":\"#000000\"},{\"name\":\"node.highlight\",\"hex\":\"#dddddd\"},{\"name\":\"edge.regular\",\"hex\":\"#2592a1\"},{\"name\":\"edge.consequence\",\"hex\":\"#4ce34c\"},{\"name\":\"edge.alternative\",\"hex\":\"#ff3e3e\"},{\"name\":\"cluster.border\",\"hex\":\"#302e2e\"},{\"name\":\"cluster.with\",\"hex\":\"#7d007d\"},{\"name\":\"cluster.tryComplex\",\"hex\":\"#344c74\"},{\"name\":\"cluster.try\",\"hex\":\"#1b5f1b\"},{\"name\":\"cluster.finally\",\"hex\":\"#999918\"},{\"name\":\"cluster.except\",\"hex\":\"#590c0c\"},{\"name\":\"graph.background\",\"hex\":\"#2B2D30\"}]}"
+        private const val PLUGIN_TITLE = "Function Graph Overview"
 
 
         private const val HOST_NAME = "localhost"
@@ -43,21 +54,14 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
 
         private const val VIEWER_URL = "$PROTOCOL://$HOST_NAME$VIEWER_PATH"
 
-        init {
-            Disposer.register(ApplicationManager.getApplication(), ourCefClient)
-        }
-
-        private fun extensionToMime(extension: String) = when (extension) {
-            "html" -> "text/html"
-            "png" -> "image/png"
-            "wasm" -> "application/wasm"
-            "js" -> "text/javascript"
-            "css" -> "text/css"
-            "json" -> "application/json"
-            else -> null
-        }
-
     }
+
+
+    private val CARET_LISTENER_KEY = Key<CaretListener>("FileInfoCaretListener")
+    private val ourCefClient = JBCefApp.getInstance().createClient()
+    private fun isDebugMode() = true || RegistryManager.getInstance().`is`("ide.browser.jcef.svg-viewer.debug")
+
+    private val myCaretListener = createCaretListener()
 
     private val myBrowser: JBCefBrowser =
         JBCefBrowserBuilder().setClient(ourCefClient).setEnableOpenDevToolsMenuItem(isDebugMode()).build()
@@ -74,6 +78,7 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
         myBrowser.loadURL(VIEWER_URL)
 
         Disposer.register(this, myBrowser)
+        Disposer.register(this, ourCefClient)
     }
 
 
@@ -94,13 +99,14 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
         }
 
 
+
         // Add listeners
         project.messageBus.connect().subscribe(
             FileEditorManagerListener.FILE_EDITOR_MANAGER,
             object : FileEditorManagerListener {
                 override fun selectionChanged(event: FileEditorManagerEvent) {
                     val editor = event.manager.selectedTextEditor ?: return
-                    updateFileInfo(editor)
+                    updateCaretPosition(editor)
 
 
                     // Add caret listener to the editor
@@ -113,7 +119,7 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
     private fun createCaretListener(): CaretListener {
         return object : CaretListener {
             override fun caretPositionChanged(event: CaretEvent) {
-                updateFileInfo(event.editor)
+                updateCaretPosition(event.editor)
             }
 
             // Implement other methods if needed
@@ -132,21 +138,14 @@ class MyToolWindowFactory : ToolWindowFactory, Disposable {
 
 
     override fun dispose() {
-//        ourCefClient.removeRequestHandler(myRequestHandler, myBrowser.cefBrowser)
-//        ourCefClient.removeLoadHandler(myLoadHandler, myBrowser.cefBrowser)
-//        myDocument.removeDocumentListener(this)
         ourCefClient.removeRequestHandler(myRequestHandler, myBrowser.cefBrowser)
-//    ourCefClient.removeLoadHandler(myLoadHandler, myBrowser.cefBrowser)
     }
 
 
     private fun setCode(code: String, cursorOffset: Int, language: String) {
         //TODO: It is likely that some languages won't match up with the TS code,
         //      in which case we'll have to map them from the JB name to the TS name.
-        val cfgLanguage = when (language) {
-            "C/C++"->"C"
-            else -> language
-        }
+        val cfgLanguage = internalLanguageName(language)
         val base64code = Base64.getEncoder().encodeToString(code.toByteArray())
         val jsToExecute = """
             (()=>{
@@ -168,7 +167,7 @@ setCode(code, $cursorOffset, "$cfgLanguage");})();
         myBrowser.cefBrowser.executeJavaScript(jsToExecute, "", 0);
     }
 
-    private fun updateFileInfo(editor: Editor?) {
+    private fun updateCaretPosition(editor: Editor?) {
         if (editor != null) {
             val caret = editor.caretModel.primaryCaret
             val document = editor.document
@@ -177,7 +176,6 @@ setCode(code, $cursorOffset, "$cfgLanguage");})();
 
 
             thisLogger().warn("Language displayName = ${editor.virtualFile.fileType.displayName}, name = ${editor.virtualFile.fileType.name}")
-            setColors(DEFAULT_DARK_COLORS)
 
             setCode(document.text, caret.offset, editor.virtualFile.fileType.displayName)
 
@@ -202,7 +200,3 @@ setCode(code, $cursorOffset, "$cfgLanguage");})();
 
 
 }
-
-private val CARET_LISTENER_KEY = Key<CaretListener>("FileInfoCaretListener")
-private val ourCefClient = JBCefApp.getInstance().createClient()
-fun isDebugMode() = true || RegistryManager.getInstance().`is`("ide.browser.jcef.svg-viewer.debug")
