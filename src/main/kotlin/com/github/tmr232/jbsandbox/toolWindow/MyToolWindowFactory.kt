@@ -3,6 +3,7 @@ package com.github.tmr232.jbsandbox.toolWindow
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.editor.event.CaretEvent
 import com.intellij.openapi.editor.event.CaretListener
 import com.intellij.openapi.fileEditor.FileEditorManagerEvent
@@ -10,11 +11,9 @@ import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.IconLoader
-import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.registry.RegistryManager
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
-import com.intellij.ui.components.JBPanel
 import com.intellij.ui.jcef.JBCefApp
 import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.ui.jcef.JBCefBrowserBuilder
@@ -41,6 +40,17 @@ private fun internalLanguageName(language: String) =
         else -> language
     }
 
+private fun safeString(text: String): String {
+    val base64text = Base64.getEncoder().encodeToString(text.toByteArray())
+    return """(()=>{
+            function base64ToBytes(base64) {
+                const binString = atob(base64);
+                return Uint8Array.from(binString, (m) => m.codePointAt(0));
+            }
+            return new TextDecoder().decode(base64ToBytes("$base64text"));
+            })()"""
+}
+
 class MyToolWindowFactory :
     ToolWindowFactory,
     Disposable {
@@ -55,7 +65,6 @@ class MyToolWindowFactory :
         private const val VIEWER_URL = "$PROTOCOL://$HOST_NAME$VIEWER_PATH"
     }
 
-    private val caretListenerKey = Key<CaretListener>("FileInfoCaretListener")
     private val ourCefClient = JBCefApp.getInstance().createClient()
 
     private fun isDebugMode() = true || RegistryManager.getInstance().`is`("ide.browser.jcef.svg-viewer.debug")
@@ -78,6 +87,8 @@ class MyToolWindowFactory :
         Disposer.register(this, ourCefClient)
     }
 
+    override fun shouldBeAvailable(project: Project) = true
+
     override fun createToolWindowContent(
         project: Project,
         toolWindow: ToolWindow,
@@ -90,7 +101,6 @@ class MyToolWindowFactory :
         if (JBCefApp.isSupported()) {
             val webContent =
                 contentManager.factory.createContent(
-//                myBrowser.component,
                     createWebViewContent(),
                     null,
                     false,
@@ -98,16 +108,16 @@ class MyToolWindowFactory :
             contentManager.addContent(webContent)
         }
 
+
         // Add listeners
-        project.messageBus.connect().subscribe(
+        EditorFactory.getInstance().eventMulticaster.addCaretListener(createCaretListener(), this)
+
+        project.messageBus.connect(this).subscribe(
             FileEditorManagerListener.FILE_EDITOR_MANAGER,
             object : FileEditorManagerListener {
                 override fun selectionChanged(event: FileEditorManagerEvent) {
                     val editor = event.manager.selectedTextEditor ?: return
                     updateCaretPosition(editor)
-
-                    // Add caret listener to the editor
-                    addCaretListenerIfNeeded(editor)
                 }
             },
         )
@@ -125,14 +135,6 @@ class MyToolWindowFactory :
             override fun caretRemoved(event: CaretEvent) {}
         }
 
-    private fun addCaretListenerIfNeeded(editor: Editor) {
-        if (editor.getUserData(caretListenerKey) == null) {
-            val caretListener = createCaretListener()
-            editor.caretModel.addCaretListener(caretListener)
-            editor.putUserData(caretListenerKey, caretListener)
-        }
-    }
-
     override fun dispose() {
         ourCefClient.removeRequestHandler(myRequestHandler, myBrowser.cefBrowser)
     }
@@ -142,27 +144,13 @@ class MyToolWindowFactory :
         cursorOffset: Int,
         language: String,
     ) {
-        // TODO: It is likely that some languages won't match up with the TS code,
-        //      in which case we'll have to map them from the JB name to the TS name.
         val cfgLanguage = internalLanguageName(language)
-        val base64code = Base64.getEncoder().encodeToString(code.toByteArray())
-        val jsToExecute = """
-            (()=>{
-        function base64ToBytes(base64) {
-  const binString = atob(base64);
-  return Uint8Array.from(binString, (m) => m.codePointAt(0));
-}
-
-const code = new TextDecoder().decode(base64ToBytes("$base64code"));
-setCode(code, $cursorOffset, "$cfgLanguage");})();
-        """
+        val jsToExecute = """setCode(${safeString(code)}, $cursorOffset, "$cfgLanguage");"""
         myBrowser.cefBrowser.executeJavaScript(jsToExecute, "", 0)
     }
 
     private fun setColors(colors: String) {
-        val jsToExecute = """
-            setColors(`$colors`);
-        """
+        val jsToExecute = """setColors(${safeString(colors)});"""
         myBrowser.cefBrowser.executeJavaScript(jsToExecute, "", 0)
     }
 
@@ -179,8 +167,6 @@ setCode(code, $cursorOffset, "$cfgLanguage");})();
         }
     }
 
-    override fun shouldBeAvailable(project: Project) = true
-
     private fun createButton(
         text: String,
         onClick: () -> Unit,
@@ -188,10 +174,10 @@ setCode(code, $cursorOffset, "$cfgLanguage");})();
 
     private fun createWebViewContent(): JComponent {
 //         TODO: Find a way to enable debugging and keep the scaling!
-        return JBPanel<JBPanel<*>>().apply {
-            add(createButton("Open Devtools") { myBrowser.openDevtools() })
-            add(myBrowser.component)
-        }
-//        return myBrowser.component
+        return myBrowser.component
+//        return JBPanel<JBPanel<*>>().apply {
+//            add(createButton("Open Devtools") { myBrowser.openDevtools() })
+//            add(myBrowser.component)
+//        }
     }
 }
