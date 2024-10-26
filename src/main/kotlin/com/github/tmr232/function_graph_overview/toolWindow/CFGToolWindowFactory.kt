@@ -1,4 +1,4 @@
-package com.github.tmr232.jbsandbox.toolWindow
+package com.github.tmr232.function_graph_overview.toolWindow
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.thisLogger
@@ -51,7 +51,7 @@ private fun safeString(text: String): String {
             })()"""
 }
 
-class MyToolWindowFactory :
+class CFGToolWindowFactory :
     ToolWindowFactory,
     Disposable {
     companion object {
@@ -95,7 +95,7 @@ class MyToolWindowFactory :
     ) {
         toolWindow.title = PLUGIN_TITLE
         toolWindow.stripeTitle = PLUGIN_TITLE
-        toolWindow.setIcon(IconLoader.getIcon("/webview/favicon.png", javaClass))
+        toolWindow.setIcon(IconLoader.getIcon("/icons/view-icon.svg", javaClass))
 
         val contentManager = toolWindow.contentManager
         if (JBCefApp.isSupported()) {

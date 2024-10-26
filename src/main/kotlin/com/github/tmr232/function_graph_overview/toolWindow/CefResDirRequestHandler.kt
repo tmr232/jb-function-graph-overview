@@ -1,4 +1,4 @@
-package com.github.tmr232.jbsandbox.toolWindow
+package com.github.tmr232.function_graph_overview.toolWindow
 
 import com.intellij.openapi.diagnostic.thisLogger
 import org.cef.browser.CefBrowser
