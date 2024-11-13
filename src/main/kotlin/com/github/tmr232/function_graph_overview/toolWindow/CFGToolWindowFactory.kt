@@ -8,6 +8,7 @@ import com.intellij.openapi.editor.event.CaretEvent
 import com.intellij.openapi.editor.event.CaretListener
 import com.intellij.openapi.fileEditor.FileEditorManagerEvent
 import com.intellij.openapi.fileEditor.FileEditorManagerListener
+import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.IconLoader
@@ -53,6 +54,7 @@ private fun safeString(text: String): String {
 
 class CFGToolWindowFactory :
     ToolWindowFactory,
+    DumbAware,
     Disposable {
     companion object {
         private const val PLUGIN_TITLE = "Function Graph Overview"
