@@ -7,7 +7,12 @@
     <depends>com.intellij.modules.platform</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow factoryClass="com.github.tmr232.function_graph_overview.toolWindow.CFGToolWindowFactory" id="MyToolWindow"/>
+        <toolWindow
+                factoryClass="com.github.tmr232.function_graph_overview.toolWindow.CFGToolWindowFactory"
+                id="Function Graph Overview"
+                icon="/icons/view-icon.svg"
+                anchor="right"
+        />
     </extensions>
 
 </idea-plugin>
