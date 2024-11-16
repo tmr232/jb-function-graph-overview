@@ -64,6 +64,7 @@ jobs:
         with:
           name: webview
           path: src/main/resources/
+
       - run: ls -R src/main/resources
 
       # Validate wrapper
