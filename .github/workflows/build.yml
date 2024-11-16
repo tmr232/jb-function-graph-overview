@@ -33,7 +33,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: tmr232/function-graph-overview
-          ref: 'jetbrains'
       - uses: oven-sh/setup-bun@v2
 
       - run: bun install
