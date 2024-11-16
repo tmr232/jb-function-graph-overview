@@ -22,6 +22,10 @@ The plugin currently supports Python, C, and Go.
 
 <!-- Plugin description end -->
 
+
+| ![A docked CFG view](/media/screenshot-docked.png) | ![An undocked CFG view](/media/screenshot-undocked.png) |
+|----------------------------------------------------|---------------------------------------------------------|
+
 This is a port of the [Function-Graph-Overview](https://github.com/tmr232/function-graph-overview/) to JetBrains IDEs.
 
 
