@@ -1,6 +1,6 @@
 # Function Graph Overview (for JetBrains IDEs)
 
-![Build](https://github.com/tmr232/jb-sandbox/workflows/Build/badge.svg)
+![Build](https://github.com/tmr232/function-graph-overview/workflows/Build/badge.svg)
 [![Version](https://img.shields.io/jetbrains/plugin/v/25676.svg)](https://plugins.jetbrains.com/plugin/25676)
 [![Downloads](https://img.shields.io/jetbrains/plugin/d/25676.svg)](https://plugins.jetbrains.com/plugin/25676)
 
