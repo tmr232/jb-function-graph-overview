@@ -26,6 +26,24 @@ concurrency:
   
 jobs:
 
+  build-webview:
+    name: Build Webview
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: tmr232/function-graph-overview
+          ref: 'jetbrains'
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install
+      - run: bun build-demo
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: "webview"
+          path: "./dist/jetbrains/"
+
   # Prepare environment and build the plugin
   build:
     name: Build
@@ -39,6 +57,14 @@ jobs:
       # Check out the current repository
       - name: Fetch Sources
         uses: actions/checkout@v4
+
+      # Get the webview content
+      - name: Ferch Webview
+        uses: actions/download-artifact@v4
+        with:
+          name: webview
+          path: src/main/resources/
+      - run: ls -R src/main/resources
 
       # Validate wrapper
       - name: Gradle Wrapper Validation
