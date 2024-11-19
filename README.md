@@ -43,6 +43,13 @@ This is a port of the [Function-Graph-Overview](https://github.com/tmr232/functi
   You can also download the [latest release](https://plugins.jetbrains.com/plugin/25676/versions) from JetBrains Marketplace and install it manually using
   <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>⚙️</kbd> > <kbd>Install plugin from disk...</kbd>
 
+## Getting Started
+
+If the graph window doesn't shop up immediately after installation, then:
+
+1. Go to the main menu and click `View -> Tool Windows -> Function Graph Overview`.
+2. Or open the Search Everywhere popup (double-click <kbd>Shift</kbd>, or click the 🔍 icon at the top-right of the IDE window) and search for `Function Graph Overview`.
+
 ---
 Plugin based on the [IntelliJ Platform Plugin Template][template].
 
