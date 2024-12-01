@@ -64,7 +64,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: webview
-          path: src/main/resources/
+          path: src/main/resources/webview
 
       - run: ls -R src/main/resources
 
