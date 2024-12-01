@@ -157,6 +157,8 @@ intellijPlatformTesting {
         register("runPyCharm") {
             type = IntelliJPlatformType.PyCharmCommunity
             version = "2024.2.4"
+//            // Uncomment to test locally
+//            localPath.set(File("C:\\Users\\tamir\\AppData\\Local\\Programs\\PyCharm Community"))
             task {
                 jvmArgumentProviders += CommandLineArgumentProvider {
                     listOf(
