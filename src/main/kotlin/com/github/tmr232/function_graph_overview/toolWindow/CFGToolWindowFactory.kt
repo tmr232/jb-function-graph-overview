@@ -37,7 +37,9 @@ private fun extensionToMime(extension: String) =
 
 private fun internalLanguageName(language: String) =
     when (language) {
-        "C/C++" -> "C"
+        // We need to choose either C or C++ here,
+        // and our current implementation of C++ is a strict superset of C.
+        "C/C++" -> "C++"
         else -> language
     }
 

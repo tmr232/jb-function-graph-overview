@@ -33,7 +33,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: tmr232/function-graph-overview
-          ref: release-0.0.10
       - uses: oven-sh/setup-bun@v2
 
       - run: bun install
@@ -60,7 +59,7 @@ jobs:
         uses: actions/checkout@v4
 
       # Get the webview content
-      - name: Ferch Webview
+      - name: Fetch Webview
         uses: actions/download-artifact@v4
         with:
           name: webview
