@@ -1,23 +1,31 @@
 package com.github.tmr232.function_graph_overview.toolWindow
 
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.Application
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.EditorFactory
+import com.intellij.openapi.editor.ScrollType
 import com.intellij.openapi.editor.event.CaretEvent
 import com.intellij.openapi.editor.event.CaretListener
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.FileEditorManagerEvent
 import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.IconLoader
 import com.intellij.openapi.util.registry.RegistryManager
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
+import com.intellij.ui.components.JBPanel
 import com.intellij.ui.jcef.JBCefApp
 import com.intellij.ui.jcef.JBCefBrowser
+import com.intellij.ui.jcef.JBCefBrowserBase
 import com.intellij.ui.jcef.JBCefBrowserBuilder
+import com.intellij.ui.jcef.JBCefJSQuery
 import org.cef.handler.CefRequestHandler
 import java.io.File
 import java.util.Base64
@@ -69,6 +77,7 @@ class CFGToolWindowFactory :
         private const val VIEWER_URL = "$PROTOCOL://$HOST_NAME$VIEWER_PATH"
     }
 
+
     private val ourCefClient = JBCefApp.getInstance().createClient()
 
     private fun isDebugMode() = true || RegistryManager.getInstance().`is`("ide.browser.jcef.svg-viewer.debug")
@@ -82,10 +91,22 @@ class CFGToolWindowFactory :
             }
         }
 
+    private val navigateQuery = JBCefJSQuery.create(myBrowser as JBCefBrowserBase)
+
     init {
         ourCefClient.addRequestHandler(myRequestHandler, myBrowser.cefBrowser)
 
         myBrowser.loadURL(VIEWER_URL)
+
+        navigateQuery.addHandler { position:String->
+            thisLogger().debug(position)
+            val offset = position.toInt();
+            val project = ProjectManager.getInstance().openProjects.firstOrNull()
+            if (project != null) {
+                setCursorPosition(project, offset);
+            }
+            null
+        }
 
         Disposer.register(this, myBrowser)
         Disposer.register(this, ourCefClient)
@@ -143,6 +164,15 @@ class CFGToolWindowFactory :
         ourCefClient.removeRequestHandler(myRequestHandler, myBrowser.cefBrowser)
     }
 
+    /**
+     * Initializes the webview callbacks into the plugin code
+     */
+    private fun initializeCallbacks() {
+        myBrowser.cefBrowser.executeJavaScript("window.navigateTo = function(position) {" +
+        navigateQuery.inject("position") + "};",
+            myBrowser.cefBrowser.url, 0)
+    }
+
     private fun setCode(
         code: String,
         cursorOffset: Int,
@@ -151,6 +181,7 @@ class CFGToolWindowFactory :
         val cfgLanguage = internalLanguageName(language)
         val jsToExecute = """setCode(${safeString(code)}, $cursorOffset, "$cfgLanguage");"""
         myBrowser.cefBrowser.executeJavaScript(jsToExecute, "", 0)
+        initializeCallbacks()
     }
 
     private fun setColors(colors: String) {
@@ -178,10 +209,35 @@ class CFGToolWindowFactory :
 
     private fun createWebViewContent(): JComponent {
 //         TODO: Find a way to enable debugging and keep the scaling!
-        return myBrowser.component
-//        return JBPanel<JBPanel<*>>().apply {
-//            add(createButton("Open Devtools") { myBrowser.openDevtools() })
-//            add(myBrowser.component)
-//        }
+//        return myBrowser.component
+        return JBPanel<JBPanel<*>>().apply {
+            add(createButton("Open Devtools") { myBrowser.openDevtools() })
+            add(myBrowser.component)
+        }
+    }
+}
+
+fun setCursorPosition(project: Project, offset: Int) {
+    // Get the current active editor
+    val editor = FileEditorManager.getInstance(project).selectedTextEditor
+
+    editor?.let {
+        editor.contentComponent.requestFocusInWindow()
+        // Get the caret model to modify cursor position
+        val caretModel = it.caretModel
+
+        ApplicationManager.getApplication().invokeLater {
+            // Set the cursor position to the specified offset
+            var x = 1;
+            try {
+                caretModel.moveToOffset(offset)
+            } catch (e: Exception) {
+                x = 2;
+            }
+
+            // Optional: Make sure the cursor is visible
+            it.scrollingModel.scrollToCaret(ScrollType.MAKE_VISIBLE)
+        }
+
     }
 }
