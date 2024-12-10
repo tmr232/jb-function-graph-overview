@@ -1,7 +1,6 @@
 package com.github.tmr232.function_graph_overview.toolWindow
 
 import com.intellij.openapi.Disposable
-import com.intellij.openapi.application.Application
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.editor.Editor
@@ -16,8 +15,8 @@ import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.util.Disposer.isDebugMode
 import com.intellij.openapi.util.IconLoader
-import com.intellij.openapi.util.registry.RegistryManager
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.components.JBPanel
@@ -54,21 +53,53 @@ private fun internalLanguageName(language: String) =
 private fun safeString(text: String): String {
     val base64text = Base64.getEncoder().encodeToString(text.toByteArray())
     return """(()=>{
-            function base64ToBytes(base64) {
+            function __kotlin_base64ToBytes(base64) {
                 const binString = atob(base64);
                 return Uint8Array.from(binString, (m) => m.codePointAt(0));
             }
-            return new TextDecoder().decode(base64ToBytes("$base64text"));
+            return new TextDecoder().decode(__kotlin_base64ToBytes("$base64text"));
             })()"""
 }
 
-class CFGToolWindowFactory :
-    ToolWindowFactory,
-    DumbAware,
-    Disposable {
-    companion object {
-        private const val PLUGIN_TITLE = "Function Graph Overview"
+private fun formatJSCall(name:String, vararg args: JSArg):String {
+    val formattedArgs = args.joinToString { it.asJSArg() }
+    return "${name}(${formattedArgs});"
+}
 
+private fun registerCaretListener(project: Project, parentDisposable: Disposable, onPositionChanged:(editor:Editor?)->Unit) {
+    EditorFactory.getInstance().eventMulticaster.addCaretListener(object : CaretListener {
+        override fun caretPositionChanged(event: CaretEvent) {
+            onPositionChanged(event.editor)
+        }
+    }, parentDisposable)
+
+    project.messageBus.connect(parentDisposable).subscribe(
+        FileEditorManagerListener.FILE_EDITOR_MANAGER,
+        object : FileEditorManagerListener {
+            override fun selectionChanged(event: FileEditorManagerEvent) {
+                val editor = event.manager.selectedTextEditor ?: return
+                onPositionChanged(editor)
+            }
+        },
+    )
+}
+
+private interface JSArg {
+    fun asJSArg():String
+}
+
+private fun jsStr(value:String):JSArg = object :JSArg{
+    override fun asJSArg(): String =safeString(value)
+}
+private fun jsNum(value:Number):JSArg= object:JSArg {
+    override fun asJSArg(): String {
+        return value.toString()
+    }
+}
+
+private class LocalBrowser(val resourcePath:String):Disposable {
+
+    companion object {
         private const val HOST_NAME = "localhost"
         private const val PROTOCOL = "http"
 
@@ -76,27 +107,60 @@ class CFGToolWindowFactory :
 
         private const val VIEWER_URL = "$PROTOCOL://$HOST_NAME$VIEWER_PATH"
     }
-
-
-    private val ourCefClient = JBCefApp.getInstance().createClient()
-
-    private fun isDebugMode() = true || RegistryManager.getInstance().`is`("ide.browser.jcef.svg-viewer.debug")
-
+    private val myCefClient = JBCefApp.getInstance().createClient()
     private val myBrowser: JBCefBrowser =
-        JBCefBrowserBuilder().setClient(ourCefClient).setEnableOpenDevToolsMenuItem(isDebugMode()).build()
+        JBCefBrowserBuilder().setClient(myCefClient).setEnableOpenDevToolsMenuItem(isDebugMode()).build()
     private val myRequestHandler: CefRequestHandler =
         CefResDirRequestHandler(PROTOCOL, HOST_NAME) { path: String ->
-            javaClass.getResourceAsStream("/webview/$path")?.let { stream ->
+            javaClass.getResourceAsStream("$resourcePath/$path")?.let { stream ->
                 extensionToMime(File(path).extension)?.let { mimeType -> CefStreamResourceHandler(stream, mimeType, this) }
             }
         }
 
-    private val navigateQuery = JBCefJSQuery.create(myBrowser as JBCefBrowserBase)
+    init {
+        myCefClient.addRequestHandler(myRequestHandler, myBrowser.cefBrowser)
+        myBrowser.loadURL(VIEWER_URL)
+
+        Disposer.register(this, myBrowser)
+        Disposer.register(this, myCefClient)
+    }
+
+    override fun dispose() {
+        myCefClient.removeRequestHandler(myRequestHandler, myBrowser.cefBrowser)
+    }
+
+    fun call(name:String, vararg args: JSArg) {
+        myBrowser.cefBrowser.executeJavaScript(formatJSCall(name, *args), "", 0);
+    }
+
+    fun injectFunction(name:String, vararg args:String, code:String) {
+        myBrowser.cefBrowser.executeJavaScript("window.$name = (${args.joinToString()}) => {$code};",
+            myBrowser.cefBrowser.url, 0)
+    }
+
+    fun createJSQuery() = JBCefJSQuery.create(myBrowser as JBCefBrowserBase)
+
+    val component get() = myBrowser.component
+    fun openDevtools() = myBrowser.openDevtools()
+}
+
+
+
+class CFGToolWindowFactory :
+    ToolWindowFactory,
+    DumbAware,
+    Disposable {
+
+    companion object {
+        private const val PLUGIN_TITLE = "Function Graph Overview"
+    }
+
+        private val localBrowser:LocalBrowser= LocalBrowser("/webview")
+
+    private val navigateQuery = localBrowser.createJSQuery()
 
     init {
-        ourCefClient.addRequestHandler(myRequestHandler, myBrowser.cefBrowser)
 
-        myBrowser.loadURL(VIEWER_URL)
 
         navigateQuery.addHandler { position:String->
             thisLogger().debug(position)
@@ -108,8 +172,7 @@ class CFGToolWindowFactory :
             null
         }
 
-        Disposer.register(this, myBrowser)
-        Disposer.register(this, ourCefClient)
+        Disposer.register(this, localBrowser)
     }
 
     override fun shouldBeAvailable(project: Project) = true
@@ -134,43 +197,21 @@ class CFGToolWindowFactory :
         }
 
 
-        // Add listeners
-        EditorFactory.getInstance().eventMulticaster.addCaretListener(createCaretListener(), this)
-
-        project.messageBus.connect(this).subscribe(
-            FileEditorManagerListener.FILE_EDITOR_MANAGER,
-            object : FileEditorManagerListener {
-                override fun selectionChanged(event: FileEditorManagerEvent) {
-                    val editor = event.manager.selectedTextEditor ?: return
-                    updateCaretPosition(editor)
-                }
-            },
-        )
+        registerCaretListener(project, this) {updateCaretPosition(it)}
     }
 
-    private fun createCaretListener(): CaretListener =
-        object : CaretListener {
-            override fun caretPositionChanged(event: CaretEvent) {
-                updateCaretPosition(event.editor)
-            }
 
-            // Implement other methods if needed
-            override fun caretAdded(event: CaretEvent) {}
 
-            override fun caretRemoved(event: CaretEvent) {}
-        }
+
 
     override fun dispose() {
-        ourCefClient.removeRequestHandler(myRequestHandler, myBrowser.cefBrowser)
     }
 
     /**
      * Initializes the webview callbacks into the plugin code
      */
     private fun initializeCallbacks() {
-        myBrowser.cefBrowser.executeJavaScript("window.navigateTo = function(position) {" +
-        navigateQuery.inject("position") + "};",
-            myBrowser.cefBrowser.url, 0)
+        localBrowser.injectFunction("navigateTo","position", code=navigateQuery.inject("position"))
     }
 
     private fun setCode(
@@ -179,14 +220,12 @@ class CFGToolWindowFactory :
         language: String,
     ) {
         val cfgLanguage = internalLanguageName(language)
-        val jsToExecute = """setCode(${safeString(code)}, $cursorOffset, "$cfgLanguage");"""
-        myBrowser.cefBrowser.executeJavaScript(jsToExecute, "", 0)
+        localBrowser.call("setCode", jsStr(code), jsNum(cursorOffset), jsStr(cfgLanguage))
         initializeCallbacks()
     }
 
     private fun setColors(colors: String) {
-        val jsToExecute = """setColors(${safeString(colors)});"""
-        myBrowser.cefBrowser.executeJavaScript(jsToExecute, "", 0)
+        localBrowser.call("setColors", jsStr(colors))
     }
 
     private fun updateCaretPosition(editor: Editor?) {
@@ -211,8 +250,8 @@ class CFGToolWindowFactory :
 //         TODO: Find a way to enable debugging and keep the scaling!
 //        return myBrowser.component
         return JBPanel<JBPanel<*>>().apply {
-            add(createButton("Open Devtools") { myBrowser.openDevtools() })
-            add(myBrowser.component)
+            add(createButton("Open Devtools") { localBrowser.openDevtools() })
+            add(localBrowser.component)
         }
     }
 }
