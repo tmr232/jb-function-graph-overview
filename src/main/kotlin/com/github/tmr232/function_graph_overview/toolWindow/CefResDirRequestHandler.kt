@@ -4,7 +4,11 @@ import com.intellij.openapi.diagnostic.thisLogger
 import org.cef.browser.CefBrowser
 import org.cef.browser.CefFrame
 import org.cef.callback.CefCallback
-import org.cef.handler.*
+import org.cef.handler.CefRequestHandlerAdapter
+import org.cef.handler.CefResourceHandler
+import org.cef.handler.CefResourceHandlerAdapter
+import org.cef.handler.CefResourceRequestHandler
+import org.cef.handler.CefResourceRequestHandlerAdapter
 import org.cef.misc.BoolRef
 import org.cef.network.CefRequest
 import java.net.URI
@@ -14,41 +18,47 @@ private typealias LookupResourceProvider = (String) -> CefResourceHandler?
 class CefResDirRequestHandler(
     private val myProtocol: String,
     private val myAuthority: String,
-    private val myResourceProvider: LookupResourceProvider
+    private val myResourceProvider: LookupResourceProvider,
 ) : CefRequestHandlerAdapter() {
-
-    private val REJECTING_RESOURCE_HANDLER: CefResourceHandler = object : CefResourceHandlerAdapter() {
-        override fun processRequest(request: CefRequest, callback: CefCallback): Boolean {
-            callback.cancel()
-            return false
-        }
-    }
-
-    private val RESOURCE_REQUEST_HANDLER = object : CefResourceRequestHandlerAdapter() {
-        override fun getResourceHandler(browser: CefBrowser?, frame: CefFrame?, request: CefRequest): CefResourceHandler {
-            val url = URI(request.url).toURL()
-            thisLogger().warn(String.format("url: %s, protocol: %s, authority: %s", url, url.protocol, url.authority))
-            url.protocol
-            if (!url.protocol.equals(myProtocol) || !url.authority.equals(myAuthority)) {
-                return REJECTING_RESOURCE_HANDLER
-            }
-            return try {
-                myResourceProvider(url.path) ?: REJECTING_RESOURCE_HANDLER
-            } catch (e: RuntimeException) {
-                REJECTING_RESOURCE_HANDLER
+    private val REJECTING_RESOURCE_HANDLER: CefResourceHandler =
+        object : CefResourceHandlerAdapter() {
+            override fun processRequest(
+                request: CefRequest,
+                callback: CefCallback,
+            ): Boolean {
+                callback.cancel()
+                return false
             }
         }
-    }
 
+    private val RESOURCE_REQUEST_HANDLER =
+        object : CefResourceRequestHandlerAdapter() {
+            override fun getResourceHandler(
+                browser: CefBrowser?,
+                frame: CefFrame?,
+                request: CefRequest,
+            ): CefResourceHandler {
+                val url = URI(request.url).toURL()
+                thisLogger().warn(String.format("url: %s, protocol: %s, authority: %s", url, url.protocol, url.authority))
+                url.protocol
+                if (!url.protocol.equals(myProtocol) || !url.authority.equals(myAuthority)) {
+                    return REJECTING_RESOURCE_HANDLER
+                }
+                return try {
+                    myResourceProvider(url.path) ?: REJECTING_RESOURCE_HANDLER
+                } catch (e: RuntimeException) {
+                    REJECTING_RESOURCE_HANDLER
+                }
+            }
+        }
 
-
-    override fun getResourceRequestHandler(browser: CefBrowser?,
-                                           frame: CefFrame?,
-                                           request: CefRequest?,
-                                           isNavigation: Boolean,
-                                           isDownload: Boolean,
-                                           requestInitiator: String?,
-                                           disableDefaultHandling: BoolRef?): CefResourceRequestHandler {
-        return RESOURCE_REQUEST_HANDLER
-    }
+    override fun getResourceRequestHandler(
+        browser: CefBrowser?,
+        frame: CefFrame?,
+        request: CefRequest?,
+        isNavigation: Boolean,
+        isDownload: Boolean,
+        requestInitiator: String?,
+        disableDefaultHandling: BoolRef?,
+    ): CefResourceRequestHandler = RESOURCE_REQUEST_HANDLER
 }
