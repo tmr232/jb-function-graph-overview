@@ -176,14 +176,9 @@ fun setCursorPosition(
 
         ApplicationManager.getApplication().invokeLater {
             // Set the cursor position to the specified offset
-            var x = 1
-            try {
-                caretModel.moveToOffset(offset)
-            } catch (e: Exception) {
-                x = 2
-            }
+            caretModel.moveToOffset(offset)
 
-            // Optional: Make sure the cursor is visible
+            // Make sure the cursor is visible
             it.scrollingModel.scrollToCaret(ScrollType.MAKE_VISIBLE)
         }
     }
