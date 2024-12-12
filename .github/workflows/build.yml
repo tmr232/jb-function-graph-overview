@@ -65,10 +65,14 @@ jobs:
           path: src/main/resources/webview
 
       - run: ls -R src/main/resources
+      - run: df -H
 
       # Validate wrapper
       - name: Gradle Wrapper Validation
         uses: gradle/actions/wrapper-validation@v4
+
+      - run: df -H
+
 
       # Set up Java environment for the next steps
       - name: Setup Java
