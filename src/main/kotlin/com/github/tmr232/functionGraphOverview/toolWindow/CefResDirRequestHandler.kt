@@ -1,4 +1,4 @@
-package com.github.tmr232.function_graph_overview.toolWindow
+package com.github.tmr232.functionGraphOverview.toolWindow
 
 import com.intellij.openapi.diagnostic.thisLogger
 import org.cef.browser.CefBrowser
@@ -20,7 +20,7 @@ class CefResDirRequestHandler(
     private val myAuthority: String,
     private val myResourceProvider: LookupResourceProvider,
 ) : CefRequestHandlerAdapter() {
-    private val REJECTING_RESOURCE_HANDLER: CefResourceHandler =
+    private val rejectingResourceHandler: CefResourceHandler =
         object : CefResourceHandlerAdapter() {
             override fun processRequest(
                 request: CefRequest,
@@ -31,7 +31,7 @@ class CefResDirRequestHandler(
             }
         }
 
-    private val RESOURCE_REQUEST_HANDLER =
+    private val resourceRequestHandler =
         object : CefResourceRequestHandlerAdapter() {
             override fun getResourceHandler(
                 browser: CefBrowser?,
@@ -42,12 +42,12 @@ class CefResDirRequestHandler(
                 thisLogger().warn(String.format("url: %s, protocol: %s, authority: %s", url, url.protocol, url.authority))
                 url.protocol
                 if (!url.protocol.equals(myProtocol) || !url.authority.equals(myAuthority)) {
-                    return REJECTING_RESOURCE_HANDLER
+                    return rejectingResourceHandler
                 }
                 return try {
-                    myResourceProvider(url.path) ?: REJECTING_RESOURCE_HANDLER
+                    myResourceProvider(url.path) ?: rejectingResourceHandler
                 } catch (e: RuntimeException) {
-                    REJECTING_RESOURCE_HANDLER
+                    rejectingResourceHandler
                 }
             }
         }
@@ -60,5 +60,5 @@ class CefResDirRequestHandler(
         isDownload: Boolean,
         requestInitiator: String?,
         disableDefaultHandling: BoolRef?,
-    ): CefResourceRequestHandler = RESOURCE_REQUEST_HANDLER
+    ): CefResourceRequestHandler = resourceRequestHandler
 }

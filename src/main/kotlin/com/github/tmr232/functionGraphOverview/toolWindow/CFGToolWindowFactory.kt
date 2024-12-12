@@ -1,4 +1,4 @@
-package com.github.tmr232.function_graph_overview.toolWindow
+package com.github.tmr232.functionGraphOverview.toolWindow
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
@@ -18,7 +18,6 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.IconLoader
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
-import com.intellij.ui.components.JBPanel
 import com.intellij.ui.jcef.JBCefApp
 import com.intellij.ui.jcef.JBCefJSQuery.Response
 import javax.swing.JButton
@@ -154,11 +153,11 @@ class CFGToolWindowFactory :
 
     private fun createWebViewContent(): JComponent {
 //         TODO: Find a way to enable debugging and keep the scaling!
-//        return myBrowser.component
-        return JBPanel<JBPanel<*>>().apply {
-            add(createButton("Open Devtools") { localBrowser.openDevtools() })
-            add(localBrowser.component)
-        }
+        return localBrowser.component
+//        return JBPanel<JBPanel<*>>().apply {
+//            add(createButton("Open Devtools") { localBrowser.openDevtools() })
+//            add(localBrowser.component)
+//        }
     }
 }
 
