@@ -1,4 +1,4 @@
-package com.github.tmr232.functionGraphOverview.toolWindow
+package com.github.tmr232.function_graph_overview.toolWindow
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
