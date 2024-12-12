@@ -6,6 +6,18 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.0.5] - 2024-12-12
+
+- Click-to-navigate support. Click on the graph to jump to the relevant code.
+
+## [0.0.4] - 2024-12-01
+
+### Added
+
+- Support for C++
+
+## [0.0.3] - 2024-11-13
+
 ### Added
 
 - Support for rendering CFGs

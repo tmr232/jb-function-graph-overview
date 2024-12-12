@@ -18,7 +18,7 @@ view for the current function.
 
 Before installing, you can also try an [interactive demo](https://tmr232.github.io/function-graph-overview/).
 
-The plugin currently supports Python, C, and Go. 
+The plugin currently supports Python, C, C++, and Go. 
 
 <!-- Plugin description end -->
 

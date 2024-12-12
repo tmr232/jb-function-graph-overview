@@ -1,39 +1,27 @@
 package com.github.tmr232.function_graph_overview.toolWindow
 
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.EditorFactory
+import com.intellij.openapi.editor.ScrollType
 import com.intellij.openapi.editor.event.CaretEvent
 import com.intellij.openapi.editor.event.CaretListener
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.FileEditorManagerEvent
 import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.IconLoader
-import com.intellij.openapi.util.registry.RegistryManager
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.jcef.JBCefApp
-import com.intellij.ui.jcef.JBCefBrowser
-import com.intellij.ui.jcef.JBCefBrowserBuilder
-import org.cef.handler.CefRequestHandler
-import java.io.File
-import java.util.Base64
+import com.intellij.ui.jcef.JBCefJSQuery.Response
 import javax.swing.JButton
 import javax.swing.JComponent
-
-private fun extensionToMime(extension: String) =
-    when (extension) {
-        "html" -> "text/html"
-        "png" -> "image/png"
-        "wasm" -> "application/wasm"
-        "js" -> "text/javascript"
-        "css" -> "text/css"
-        "json" -> "application/json"
-        else -> null
-    }
 
 private fun internalLanguageName(language: String) =
     when (language) {
@@ -43,15 +31,29 @@ private fun internalLanguageName(language: String) =
         else -> language
     }
 
-private fun safeString(text: String): String {
-    val base64text = Base64.getEncoder().encodeToString(text.toByteArray())
-    return """(()=>{
-            function base64ToBytes(base64) {
-                const binString = atob(base64);
-                return Uint8Array.from(binString, (m) => m.codePointAt(0));
+private fun registerCaretListener(
+    project: Project,
+    parentDisposable: Disposable,
+    onPositionChanged: (editor: Editor?) -> Unit,
+) {
+    EditorFactory.getInstance().eventMulticaster.addCaretListener(
+        object : CaretListener {
+            override fun caretPositionChanged(event: CaretEvent) {
+                onPositionChanged(event.editor)
             }
-            return new TextDecoder().decode(base64ToBytes("$base64text"));
-            })()"""
+        },
+        parentDisposable,
+    )
+
+    project.messageBus.connect(parentDisposable).subscribe(
+        FileEditorManagerListener.FILE_EDITOR_MANAGER,
+        object : FileEditorManagerListener {
+            override fun selectionChanged(event: FileEditorManagerEvent) {
+                val editor = event.manager.selectedTextEditor ?: return
+                onPositionChanged(editor)
+            }
+        },
+    )
 }
 
 class CFGToolWindowFactory :
@@ -60,35 +62,27 @@ class CFGToolWindowFactory :
     Disposable {
     companion object {
         private const val PLUGIN_TITLE = "Function Graph Overview"
-
-        private const val HOST_NAME = "localhost"
-        private const val PROTOCOL = "http"
-
-        private const val VIEWER_PATH = "/index.html"
-
-        private const val VIEWER_URL = "$PROTOCOL://$HOST_NAME$VIEWER_PATH"
     }
 
-    private val ourCefClient = JBCefApp.getInstance().createClient()
+    private val localBrowser: LocalBrowser = LocalBrowser("/webview")
 
-    private fun isDebugMode() = true || RegistryManager.getInstance().`is`("ide.browser.jcef.svg-viewer.debug")
-
-    private val myBrowser: JBCefBrowser =
-        JBCefBrowserBuilder().setClient(ourCefClient).setEnableOpenDevToolsMenuItem(isDebugMode()).build()
-    private val myRequestHandler: CefRequestHandler =
-        CefResDirRequestHandler(PROTOCOL, HOST_NAME) { path: String ->
-            javaClass.getResourceAsStream("/webview/$path")?.let { stream ->
-                extensionToMime(File(path).extension)?.let { mimeType -> CefStreamResourceHandler(stream, mimeType, this) }
-            }
-        }
+    private val navigateQuery = localBrowser.createJSQuery()
 
     init {
-        ourCefClient.addRequestHandler(myRequestHandler, myBrowser.cefBrowser)
 
-        myBrowser.loadURL(VIEWER_URL)
+        navigateQuery.addHandler { onNavigate(it) }
 
-        Disposer.register(this, myBrowser)
-        Disposer.register(this, ourCefClient)
+        Disposer.register(this, localBrowser)
+    }
+
+    private fun onNavigate(position: String): Response {
+        thisLogger().debug(position)
+        val offset = position.toInt()
+        val project = ProjectManager.getInstance().openProjects.firstOrNull()
+        if (project != null) {
+            setCursorPosition(project, offset)
+        }
+        return Response(null)
     }
 
     override fun shouldBeAvailable(project: Project) = true
@@ -112,35 +106,17 @@ class CFGToolWindowFactory :
             contentManager.addContent(webContent)
         }
 
-
-        // Add listeners
-        EditorFactory.getInstance().eventMulticaster.addCaretListener(createCaretListener(), this)
-
-        project.messageBus.connect(this).subscribe(
-            FileEditorManagerListener.FILE_EDITOR_MANAGER,
-            object : FileEditorManagerListener {
-                override fun selectionChanged(event: FileEditorManagerEvent) {
-                    val editor = event.manager.selectedTextEditor ?: return
-                    updateCaretPosition(editor)
-                }
-            },
-        )
+        registerCaretListener(project, this) { updateCaretPosition(it) }
     }
 
-    private fun createCaretListener(): CaretListener =
-        object : CaretListener {
-            override fun caretPositionChanged(event: CaretEvent) {
-                updateCaretPosition(event.editor)
-            }
-
-            // Implement other methods if needed
-            override fun caretAdded(event: CaretEvent) {}
-
-            override fun caretRemoved(event: CaretEvent) {}
-        }
-
     override fun dispose() {
-        ourCefClient.removeRequestHandler(myRequestHandler, myBrowser.cefBrowser)
+    }
+
+    /**
+     * Initializes the webview callbacks into the plugin code
+     */
+    private fun initializeCallbacks() {
+        localBrowser.injectFunction("navigateTo", "position", code = navigateQuery.inject("position"))
     }
 
     private fun setCode(
@@ -149,13 +125,12 @@ class CFGToolWindowFactory :
         language: String,
     ) {
         val cfgLanguage = internalLanguageName(language)
-        val jsToExecute = """setCode(${safeString(code)}, $cursorOffset, "$cfgLanguage");"""
-        myBrowser.cefBrowser.executeJavaScript(jsToExecute, "", 0)
+        localBrowser.call("setCode", jsStr(code), jsNum(cursorOffset), jsStr(cfgLanguage))
+        initializeCallbacks()
     }
 
     private fun setColors(colors: String) {
-        val jsToExecute = """setColors(${safeString(colors)});"""
-        myBrowser.cefBrowser.executeJavaScript(jsToExecute, "", 0)
+        localBrowser.call("setColors", jsStr(colors))
     }
 
     private fun updateCaretPosition(editor: Editor?) {
@@ -178,10 +153,32 @@ class CFGToolWindowFactory :
 
     private fun createWebViewContent(): JComponent {
 //         TODO: Find a way to enable debugging and keep the scaling!
-        return myBrowser.component
+        return localBrowser.component
 //        return JBPanel<JBPanel<*>>().apply {
-//            add(createButton("Open Devtools") { myBrowser.openDevtools() })
-//            add(myBrowser.component)
+//            add(createButton("Open Devtools") { localBrowser.openDevtools() })
+//            add(localBrowser.component)
 //        }
+    }
+}
+
+fun setCursorPosition(
+    project: Project,
+    offset: Int,
+) {
+    // Get the current active editor
+    val editor = FileEditorManager.getInstance(project).selectedTextEditor
+
+    editor?.let {
+        editor.contentComponent.requestFocusInWindow()
+        // Get the caret model to modify cursor position
+        val caretModel = it.caretModel
+
+        ApplicationManager.getApplication().invokeLater {
+            // Set the cursor position to the specified offset
+            caretModel.moveToOffset(offset)
+
+            // Make sure the cursor is visible
+            it.scrollingModel.scrollToCaret(ScrollType.MAKE_VISIBLE)
+        }
     }
 }
