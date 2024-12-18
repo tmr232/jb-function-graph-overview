@@ -6,7 +6,17 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+### Added
+
+- TypeScript, JavaScript, TSX, JSX support
+
+### Fixed
+
+- Fixed loop and labeled continue/break handling in Go 
+
 ## [0.0.5] - 2024-12-12
+
+### Added
 
 - Click-to-navigate support. Click on the graph to jump to the relevant code.
 
