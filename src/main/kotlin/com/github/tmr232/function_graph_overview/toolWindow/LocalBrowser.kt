@@ -61,7 +61,7 @@ fun jsBool(value: Boolean): JSArg =
     }
 
 class LocalBrowser(
-    val resourcePath: String,
+    private val resourcePath: String,
 ) : Disposable {
     companion object {
         private const val HOST_NAME = "localhost"

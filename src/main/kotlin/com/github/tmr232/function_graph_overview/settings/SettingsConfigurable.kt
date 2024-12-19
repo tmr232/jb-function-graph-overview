@@ -1,5 +1,6 @@
 package com.github.tmr232.function_graph_overview.settings
 
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.options.Configurable
 import org.jetbrains.annotations.Nls
 import javax.swing.JComponent
@@ -37,6 +38,12 @@ internal class SettingsConfigurable : Configurable {
         state.flatSwitch = mySettingsComponent?.flatSwitch ?: state.flatSwitch
         state.highlight = mySettingsComponent?.highlight ?: state.highlight
         state.colorScheme = mySettingsComponent?.colorScheme ?: state.colorScheme
+
+        ApplicationManager
+            .getApplication()
+            .messageBus
+            .syncPublisher(SettingsListener.TOPIC)
+            .settingsChanged()
     }
 
     override fun reset() {

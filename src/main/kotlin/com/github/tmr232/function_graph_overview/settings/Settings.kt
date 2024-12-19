@@ -5,7 +5,16 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
+import com.intellij.util.messages.Topic
 import org.jetbrains.annotations.NonNls
+
+interface SettingsListener {
+    fun settingsChanged()
+
+    companion object {
+        val TOPIC: Topic<SettingsListener> = Topic.create("FunctionGraphOverview settings changed", SettingsListener::class.java)
+    }
+}
 
 @State(name = "org.intellij.sdk.settings.AppSettings", storages = [Storage("FunctionGraphOverview.xml")])
 internal class Settings : PersistentStateComponent<Settings.State> {

@@ -1,6 +1,7 @@
 package com.github.tmr232.function_graph_overview.toolWindow
 
 import com.github.tmr232.function_graph_overview.settings.Settings
+import com.github.tmr232.function_graph_overview.settings.SettingsListener
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.thisLogger
@@ -78,6 +79,14 @@ class CFGToolWindowFactory :
         navigateQuery.addHandler { onNavigate(it) }
 
         Disposer.register(this, localBrowser)
+        ApplicationManager.getApplication().messageBus.connect(this).subscribe(
+            SettingsListener.TOPIC,
+            object : SettingsListener {
+                override fun settingsChanged() {
+                    loadSettings()
+                }
+            },
+        )
     }
 
     private fun onNavigate(position: String): Response {
@@ -130,12 +139,16 @@ class CFGToolWindowFactory :
         language: String,
     ) {
         val cfgLanguage = internalLanguageName(language)
+        loadSettings()
+        localBrowser.call("setCode", jsStr(code), jsNum(cursorOffset), jsStr(cfgLanguage))
+        initializeCallbacks()
+    }
+
+    private fun loadSettings() {
         localBrowser.call("setSimplify", jsBool(Settings.simplify))
         localBrowser.call("setFlatSwitch", jsBool(Settings.flatSwitch))
         localBrowser.call("setHighlight", jsBool(Settings.highlight))
         setColors(Settings.colorScheme)
-        localBrowser.call("setCode", jsStr(code), jsNum(cursorOffset), jsStr(cfgLanguage))
-        initializeCallbacks()
     }
 
     private fun setColors(colors: String) {
