@@ -6,6 +6,10 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+### Added
+
+- The plugin can now be configured to change CFG rendering settings & color scheme!
+
 ## [0.0.6] - 2024-12-18
 
 ### Added

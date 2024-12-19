@@ -55,8 +55,13 @@ fun jsNum(value: Number): JSArg =
         override fun asJSArg(): String = value.toString()
     }
 
+fun jsBool(value: Boolean): JSArg =
+    object : JSArg {
+        override fun asJSArg(): String = value.toString()
+    }
+
 class LocalBrowser(
-    val resourcePath: String,
+    private val resourcePath: String,
 ) : Disposable {
     companion object {
         private const val HOST_NAME = "localhost"
