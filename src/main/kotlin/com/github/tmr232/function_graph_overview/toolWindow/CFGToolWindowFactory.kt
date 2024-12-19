@@ -1,5 +1,7 @@
 package com.github.tmr232.function_graph_overview.toolWindow
 
+import com.github.tmr232.function_graph_overview.settings.Settings
+import com.github.tmr232.function_graph_overview.settings.SettingsListener
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.thisLogger
@@ -29,7 +31,7 @@ private fun internalLanguageName(language: String) =
         // and our current implementation of C++ is a strict superset of C.
         "C/C++" -> "C++"
         // TypeScript is a superset of JavaScript
-        "JavaScript"->"TypeScript"
+        "JavaScript" -> "TypeScript"
         "TypeScript JSX" -> "TSX"
         else -> language
     }
@@ -76,6 +78,14 @@ class CFGToolWindowFactory :
         navigateQuery.addHandler { onNavigate(it) }
 
         Disposer.register(this, localBrowser)
+        ApplicationManager.getApplication().messageBus.connect(this).subscribe(
+            SettingsListener.TOPIC,
+            object : SettingsListener {
+                override fun settingsChanged() {
+                    loadSettings()
+                }
+            },
+        )
     }
 
     private fun onNavigate(position: String): Response {
@@ -128,12 +138,27 @@ class CFGToolWindowFactory :
         language: String,
     ) {
         val cfgLanguage = internalLanguageName(language)
+        loadSettings()
         localBrowser.call("setCode", jsStr(code), jsNum(cursorOffset), jsStr(cfgLanguage))
         initializeCallbacks()
     }
 
+    private fun loadSettings() {
+        localBrowser.call("setSimplify", jsBool(Settings.simplify))
+        localBrowser.call("setFlatSwitch", jsBool(Settings.flatSwitch))
+        localBrowser.call("setHighlight", jsBool(Settings.highlight))
+        setColors(Settings.colorScheme)
+    }
+
     private fun setColors(colors: String) {
-        localBrowser.call("setColors", jsStr(colors))
+        val colorScheme =
+            when (colors) {
+                "" -> return
+                "dark" -> """{"version":1,"scheme":[{"name":"node.default","hex":"#707070"},{"name":"node.entry","hex":"#48AB30"},{"name":"node.exit","hex":"#AB3030"},{"name":"node.throw","hex":"#590c0c"},{"name":"node.yield","hex":"#0a9aca"},{"name":"node.border","hex":"#000000"},{"name":"node.highlight","hex":"#dddddd"},{"name":"edge.regular","hex":"#2592a1"},{"name":"edge.consequence","hex":"#4ce34c"},{"name":"edge.alternative","hex":"#ff3e3e"},{"name":"cluster.border","hex":"#302e2e"},{"name":"cluster.with","hex":"#7d007d"},{"name":"cluster.tryComplex","hex":"#344c74"},{"name":"cluster.try","hex":"#1b5f1b"},{"name":"cluster.finally","hex":"#999918"},{"name":"cluster.except","hex":"#590c0c"},{"name":"graph.background","hex":"#2B2D30"}]}"""
+                "light" -> """{"version":1,"scheme":[{"name":"node.default","hex":"#d3d3d3"},{"name":"node.entry","hex":"#48AB30"},{"name":"node.exit","hex":"#AB3030"},{"name":"node.throw","hex":"#ffdddd"},{"name":"node.yield","hex":"#00bfff"},{"name":"node.border","hex":"#000000"},{"name":"node.highlight","hex":"#000000"},{"name":"edge.regular","hex":"#0000ff"},{"name":"edge.consequence","hex":"#008000"},{"name":"edge.alternative","hex":"#ff0000"},{"name":"cluster.border","hex":"#ffffff"},{"name":"cluster.with","hex":"#ffddff"},{"name":"cluster.tryComplex","hex":"#ddddff"},{"name":"cluster.try","hex":"#ddffdd"},{"name":"cluster.finally","hex":"#ffffdd"},{"name":"cluster.except","hex":"#ffdddd"},{"name":"graph.background","hex":"#F7F8FA"}]}"""
+                else -> colors
+            }
+        localBrowser.call("setColors", jsStr(colorScheme))
     }
 
     private fun updateCaretPosition(editor: Editor?) {
@@ -141,11 +166,13 @@ class CFGToolWindowFactory :
             val caret = editor.caretModel.primaryCaret
             val document = editor.document
 
+            val virtualFile = editor.virtualFile ?: return
+
             thisLogger().warn(
-                "Language displayName = ${editor.virtualFile.fileType.displayName}, name = ${editor.virtualFile.fileType.name}",
+                "Language displayName = ${virtualFile.fileType.displayName}, name = ${virtualFile.fileType.name}",
             )
 
-            setCode(document.text, caret.offset, editor.virtualFile.fileType.displayName)
+            setCode(document.text, caret.offset, virtualFile.fileType.displayName)
         }
     }
 

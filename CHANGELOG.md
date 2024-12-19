@@ -6,6 +6,16 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.0.7] - 2024-12-19
+
+### Added
+
+- The plugin can now be configured to change CFG rendering settings & color scheme!
+
+### Fixed
+
+- The plugin no longer throw a null-dereference exception on startup.
+
 ## [0.0.6] - 2024-12-18
 
 ### Added
