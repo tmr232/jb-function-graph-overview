@@ -55,11 +55,9 @@ fun jsNum(value: Number): JSArg =
         override fun asJSArg(): String = value.toString()
     }
 
-fun jsBool(value:Boolean):JSArg =
-    object: JSArg {
-        override fun asJSArg(): String =
-            value.toString()
-
+fun jsBool(value: Boolean): JSArg =
+    object : JSArg {
+        override fun asJSArg(): String = value.toString()
     }
 
 class LocalBrowser(
