@@ -166,11 +166,13 @@ class CFGToolWindowFactory :
             val caret = editor.caretModel.primaryCaret
             val document = editor.document
 
+            val virtualFile = editor.virtualFile ?: return
+
             thisLogger().warn(
-                "Language displayName = ${editor.virtualFile.fileType.displayName}, name = ${editor.virtualFile.fileType.name}",
+                "Language displayName = ${virtualFile.fileType.displayName}, name = ${virtualFile.fileType.name}",
             )
 
-            setCode(document.text, caret.offset, editor.virtualFile.fileType.displayName)
+            setCode(document.text, caret.offset, virtualFile.fileType.displayName)
         }
     }
 
