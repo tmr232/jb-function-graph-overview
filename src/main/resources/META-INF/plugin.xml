@@ -13,6 +13,12 @@
                 icon="/icons/view-icon.svg"
                 anchor="right"
         />
+        <applicationService serviceImplementation="com.github.tmr232.function_graph_overview.settings.Settings"/>
+        <applicationConfigurable
+                parentId="tools"
+                instance="com.github.tmr232.function_graph_overview.settings.SettingsConfigurable"
+                id="com.github.tmr232.function_graph_overview.settings.SettingsConfigurable"
+                displayName="Function Graph Overview"/>
     </extensions>
 
 </idea-plugin>
