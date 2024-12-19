@@ -28,6 +28,9 @@ private fun internalLanguageName(language: String) =
         // We need to choose either C or C++ here,
         // and our current implementation of C++ is a strict superset of C.
         "C/C++" -> "C++"
+        // TypeScript is a superset of JavaScript
+        "JavaScript"->"TypeScript"
+        "TypeScript JSX" -> "TSX"
         else -> language
     }
 

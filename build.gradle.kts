@@ -99,7 +99,8 @@ intellijPlatform {
         // The pluginVersion is based on the SemVer (https://semver.org) and supports pre-release labels, like 2.1.7-alpha.3
         // Specify pre-release label to publish the plugin in a custom Release Channel automatically. Read more:
         // https://plugins.jetbrains.com/docs/intellij/deployment.html#specifying-a-release-channel
-        channels = providers.gradleProperty("pluginVersion").map { listOf(it.substringAfter('-', "").substringBefore('.').ifEmpty { "default" }) }
+        channels = providers.gradleProperty("pluginVersion")
+            .map { listOf(it.substringAfter('-', "").substringBefore('.').ifEmpty { "default" }) }
     }
 
     pluginVerification {
@@ -155,10 +156,30 @@ intellijPlatformTesting {
             }
         }
         register("runPyCharm") {
-            type = IntelliJPlatformType.PyCharmCommunity
+            type = IntelliJPlatformType.WebStorm
 //            version = "2024.2.4"
             // Uncomment to test locally
-            localPath.set(File("C:\\Users\\tamir\\AppData\\Local\\Programs\\PyCharm Community"))
+            localPath.set(File("C:\\Users\\tamir\\AppData\\Local\\Programs\\WebStorm"))
+            task {
+                jvmArgumentProviders += CommandLineArgumentProvider {
+                    listOf(
+                        "-Drobot-server.port=8082",
+                        "-Dide.mac.message.dialogs.as.sheets=false",
+                        "-Djb.privacy.policy.text=<!--999.999-->",
+                        "-Djb.consents.confirmation.enabled=false",
+                    )
+                }
+            }
+
+            plugins {
+                robotServerPlugin()
+            }
+        }
+        register("runWebStorm") {
+            type = IntelliJPlatformType.WebStorm
+//            version = "2024.2.4"
+            // Uncomment to test locally
+            localPath.set(File("C:\\Users\\tamir\\AppData\\Local\\Programs\\WebStorm"))
             task {
                 jvmArgumentProviders += CommandLineArgumentProvider {
                     listOf(
