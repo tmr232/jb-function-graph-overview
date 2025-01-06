@@ -6,6 +6,12 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.0.8] - 2025-01-06
+
+### Fixed
+
+- Fixed an edge-case where some functions led to infinite loops when rendering.
+
 ## [0.0.7] - 2024-12-19
 
 ### Added
