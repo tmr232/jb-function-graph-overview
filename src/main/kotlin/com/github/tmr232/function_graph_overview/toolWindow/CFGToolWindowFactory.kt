@@ -20,6 +20,7 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.IconLoader
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
+import com.intellij.ui.components.JBPanel
 import com.intellij.ui.jcef.JBCefApp
 import com.intellij.ui.jcef.JBCefJSQuery.Response
 import javax.swing.JButton
@@ -70,6 +71,8 @@ class CFGToolWindowFactory :
     }
 
     private val localBrowser: LocalBrowser = LocalBrowser("/webview")
+    private val namespaceToWebview: LocalBrowser.Path = LocalBrowser.Path("JetBrains", "ToWebview")
+    private val namespaceToExtension: LocalBrowser.Path = LocalBrowser.Path("JetBrains", "ToExtension")
 
     private val navigateQuery = localBrowser.createJSQuery()
 
@@ -129,7 +132,12 @@ class CFGToolWindowFactory :
      * Initializes the webview callbacks into the plugin code
      */
     private fun initializeCallbacks() {
-        localBrowser.injectFunction("navigateTo", "position", code = navigateQuery.inject("position"))
+        localBrowser.injectFunction(
+            namespaceToExtension,
+            "navigateTo",
+            args = listOf("position"),
+            code = navigateQuery.inject("position"),
+        )
     }
 
     private fun setCode(
@@ -139,14 +147,14 @@ class CFGToolWindowFactory :
     ) {
         val cfgLanguage = internalLanguageName(language)
         loadSettings()
-        localBrowser.call("setCode", jsStr(code), jsNum(cursorOffset), jsStr(cfgLanguage))
+        localBrowser.call(namespaceToWebview, "setCode", jsStr(code), jsNum(cursorOffset), jsStr(cfgLanguage))
         initializeCallbacks()
     }
 
     private fun loadSettings() {
-        localBrowser.call("setSimplify", jsBool(Settings.simplify))
-        localBrowser.call("setFlatSwitch", jsBool(Settings.flatSwitch))
-        localBrowser.call("setHighlight", jsBool(Settings.highlight))
+        localBrowser.call(namespaceToWebview, "setSimplify", jsBool(Settings.simplify))
+        localBrowser.call(namespaceToWebview, "setFlatSwitch", jsBool(Settings.flatSwitch))
+        localBrowser.call(namespaceToWebview, "setHighlight", jsBool(Settings.highlight))
         setColors(Settings.colorScheme)
     }
 
@@ -158,7 +166,7 @@ class CFGToolWindowFactory :
                 "light" -> """{"version":1,"scheme":[{"name":"node.default","hex":"#d3d3d3"},{"name":"node.entry","hex":"#48AB30"},{"name":"node.exit","hex":"#AB3030"},{"name":"node.throw","hex":"#ffdddd"},{"name":"node.yield","hex":"#00bfff"},{"name":"node.border","hex":"#000000"},{"name":"node.highlight","hex":"#000000"},{"name":"edge.regular","hex":"#0000ff"},{"name":"edge.consequence","hex":"#008000"},{"name":"edge.alternative","hex":"#ff0000"},{"name":"cluster.border","hex":"#ffffff"},{"name":"cluster.with","hex":"#ffddff"},{"name":"cluster.tryComplex","hex":"#ddddff"},{"name":"cluster.try","hex":"#ddffdd"},{"name":"cluster.finally","hex":"#ffffdd"},{"name":"cluster.except","hex":"#ffdddd"},{"name":"graph.background","hex":"#F7F8FA"}]}"""
                 else -> colors
             }
-        localBrowser.call("setColors", jsStr(colorScheme))
+        localBrowser.call(namespaceToWebview, "setColors", jsStr(colorScheme))
     }
 
     private fun updateCaretPosition(editor: Editor?) {
@@ -183,11 +191,11 @@ class CFGToolWindowFactory :
 
     private fun createWebViewContent(): JComponent {
 //         TODO: Find a way to enable debugging and keep the scaling!
-        return localBrowser.component
-//        return JBPanel<JBPanel<*>>().apply {
-//            add(createButton("Open Devtools") { localBrowser.openDevtools() })
-//            add(localBrowser.component)
-//        }
+//        return localBrowser.component
+        return JBPanel<JBPanel<*>>().apply {
+            add(createButton("Open Devtools") { localBrowser.openDevtools() })
+            add(localBrowser.component)
+        }
     }
 }
 
