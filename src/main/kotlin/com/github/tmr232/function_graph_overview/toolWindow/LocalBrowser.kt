@@ -72,6 +72,17 @@ class LocalBrowser(
         private const val VIEWER_URL = "$PROTOCOL://$HOST_NAME$VIEWER_PATH"
     }
 
+    class Path(
+        val name: String,
+        vararg names: String,
+    ) {
+        val names: List<String> = listOf(*names)
+
+        fun extend(vararg names: String): Path = Path(this.name, *this.names.toTypedArray(), *names)
+
+        override fun toString(): String = listOf(name, *names.toTypedArray()).joinToString(".")
+    }
+
     private val myCefClient = JBCefApp.getInstance().createClient()
     private val myBrowser: JBCefBrowser =
         JBCefBrowserBuilder().setClient(myCefClient).setEnableOpenDevToolsMenuItem(Disposer.isDebugMode()).build()
@@ -101,6 +112,14 @@ class LocalBrowser(
     }
 
     fun call(
+        namespace: Path,
+        name: String,
+        vararg args: JSArg,
+    ) {
+        call(namespace.extend(name).toString(), *args)
+    }
+
+    fun call(
         name: String,
         vararg args: JSArg,
     ) {
@@ -108,8 +127,18 @@ class LocalBrowser(
     }
 
     fun injectFunction(
+        namespace: Path,
         name: String,
-        vararg args: String,
+        args: List<String>,
+        code: String,
+    ) {
+        injectEmptyObject(namespace)
+        injectFunction(namespace.extend(name).toString(), args, code)
+    }
+
+    fun injectFunction(
+        name: String,
+        args: List<String>,
         code: String,
     ) {
         myBrowser.cefBrowser.executeJavaScript(
@@ -117,6 +146,16 @@ class LocalBrowser(
             myBrowser.cefBrowser.url,
             0,
         )
+    }
+
+    private fun injectEmptyObject(path: Path) {
+        for (path in path.names.scan(path.name) { acc, string -> "$acc.$string" }) {
+            myBrowser.cefBrowser.executeJavaScript(
+                "window.$path ??= {}",
+                myBrowser.cefBrowser.url,
+                0,
+            )
+        }
     }
 
     fun createJSQuery() = JBCefJSQuery.create(myBrowser as JBCefBrowserBase)
