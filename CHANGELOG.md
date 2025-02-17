@@ -6,6 +6,21 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.0.9] - 2025-02-17
+
+### Added
+
+- Function rendering is now cached, so that they are only re-rendered when needed.
+  This results in faster update times when moving the cursor in the same function.
+- `finally` blocks are now supported in TypeScript.
+- Methods are now supported in TypeScript.
+- `continue label` is now supported in Go.
+
+### Changed
+
+- Placeholder ("Hello, World!") graph colors are now determined by the color scheme.
+- Flat-Switch is now the default for rendering switch-like control-flow structures.
+
 ## [0.0.8] - 2025-01-06
 
 ### Fixed
