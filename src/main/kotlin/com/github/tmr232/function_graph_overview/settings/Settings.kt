@@ -18,7 +18,7 @@ interface SettingsListener {
 @State(name = "org.intellij.sdk.settings.AppSettings", storages = [Storage("FunctionGraphOverview.xml")])
 internal class Settings : PersistentStateComponent<Settings.State> {
     internal class State {
-        var flatSwitch: Boolean = false
+        var flatSwitch: Boolean = true
         var simplify: Boolean = true
         var highlight: Boolean = true
         var colorScheme: @NonNls String = ""
