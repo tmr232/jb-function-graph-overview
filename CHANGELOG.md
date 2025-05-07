@@ -6,6 +6,10 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.0.11] - 2025-05-07
+
+- Pan & Zoom enabled for graphs
+
 ## [0.0.10] - 2025-03-26
 
 ### Added
