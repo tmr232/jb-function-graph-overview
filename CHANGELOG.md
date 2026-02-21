@@ -6,7 +6,17 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.0.12] - 2026-02-12
+
+### Added
+
+- Initial support for Java
+- Initial support for C#
+
+
 ## [0.0.11] - 2025-05-07
+
+### Added
 
 - Pan & Zoom enabled for graphs
 
